@@ -25,6 +25,20 @@ void main() {
     });
   });
 
+  group('cuenta que no se pudo cargar', () {
+    test('va a la pantalla de error, nunca queda en el splash', () {
+      expect(
+        go(const SessionFailed(), AppRoutes.splash),
+        AppRoutes.sessionError,
+      );
+      expect(
+        go(const SessionFailed(), AppRoutes.admin),
+        AppRoutes.sessionError,
+      );
+      expect(go(const SessionFailed(), AppRoutes.sessionError), isNull);
+    });
+  });
+
   group('sin sesión', () {
     test('puede estar en login y registro', () {
       expect(go(const SignedOut(), AppRoutes.login), isNull);

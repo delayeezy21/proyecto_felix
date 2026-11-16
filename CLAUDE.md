@@ -15,6 +15,8 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Supabase CLI fijada vía npx (no está instalada global): `npx --yes supabase@3.2.0 start` (requiere Docker) · `... test db` (pgTAP) · `... db advisors`
 - Ejecutar: `flutter run -d windows --dart-define-from-file=.env` (o `-d chrome`, `-d <android>`)
 - E2E Auth + REST (con `supabase start`): `node tool/e2e/auth_e2e.mjs "$(npx --yes supabase@3.2.0 status -o json | sed -n '/^{/,$p')"`
+- Smoke de repositorios reales: `flutter test tool/smoke/repos_smoke_test.dart --dart-define=SUPABASE_PUBLISHABLE_KEY=... --dart-define=SUPABASE_SERVICE_KEY=...` (claves de `supabase status`).
+- En consultas de "mi fila" filtrar siempre por `auth.uid()` en el cliente: la RLS deja al admin ver todas las filas.
 - La plantilla de entorno es `env.example` (sin punto: Claude Code tiene bloqueado leer `.env.*`).
 - `supabase_flutter` fijado en 2.x (v3 aún es prerelease); la clave va en `publishableKey`.
 

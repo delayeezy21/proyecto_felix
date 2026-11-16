@@ -8,6 +8,7 @@ import 'package:proyecto_felix/ui/features/admin/views/admin_home_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/login_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/sign_up_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/role_home_view.dart';
+import 'package:proyecto_felix/ui/features/home/views/session_error_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/splash_view.dart';
 import 'package:proyecto_felix/ui/features/onboarding/views/onboarding_view.dart';
 
@@ -20,7 +21,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   SessionSnapshot currentSession() => switch (ref.read(sessionProvider)) {
     AsyncData(:final value) => value,
-    AsyncError() => const SignedOut(),
+    AsyncError() => const SessionFailed(),
     _ => const SessionLoading(),
   };
 
@@ -33,6 +34,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.splash,
         builder: (context, state) => const SplashView(),
+      ),
+      GoRoute(
+        path: AppRoutes.sessionError,
+        builder: (context, state) => const SessionErrorView(),
       ),
       GoRoute(
         path: AppRoutes.login,

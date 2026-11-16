@@ -118,8 +118,14 @@ class FakeProfileRepository implements ProfileRepository {
   final registrationCalls = <RegistrationCall>[];
   ProfileFailure? nextFailure;
 
+  /// Si es true, fetchAccount falla (simula error de red o del backend).
+  bool failFetch = false;
+
   @override
-  Future<Account?> fetchAccount() async => accounts[_auth.userId];
+  Future<Account?> fetchAccount() async {
+    if (failFetch) throw const ProfileFailure('sin conexión');
+    return accounts[_auth.userId];
+  }
 
   @override
   Future<LegalVersions> fetchLegalVersions() async => legalTest;

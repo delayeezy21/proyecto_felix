@@ -33,11 +33,16 @@ class SupabaseProfileRepository implements ProfileRepository {
 
   final SupabaseClient _client;
 
+  // Siempre se filtra por el usuario actual: la RLS deja al admin ver TODAS
+  // las filas, así que no basta con confiar en ella para "mi" fila.
   @override
   Future<Account?> fetchAccount() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return null;
     final roleRow = await _client
         .from('user_roles')
         .select('role')
+        .eq('user_id', uid)
         .maybeSingle();
     final role = AppRole.tryParse(roleRow?['role'] as String?);
     if (role == null) return null;
@@ -47,12 +52,14 @@ class SupabaseProfileRepository implements ProfileRepository {
         final p = await _client
             .from('owner_profiles')
             .select('display_name')
+            .eq('user_id', uid)
             .single();
         return Account(role: role, displayName: p['display_name'] as String);
       case AppRole.vet:
         final p = await _client
             .from('vet_profiles')
             .select('display_name, status')
+            .eq('user_id', uid)
             .single();
         return Account(
           role: role,

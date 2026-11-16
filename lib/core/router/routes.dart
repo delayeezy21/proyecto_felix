@@ -2,6 +2,7 @@ import 'package:proyecto_felix/domain/models/account.dart';
 
 abstract final class AppRoutes {
   static const splash = '/splash';
+  static const sessionError = '/session-error';
   static const login = '/login';
   static const signUp = '/signup';
   static const onboarding = '/onboarding';
@@ -28,6 +29,8 @@ abstract final class AppRoutes {
     switch (session) {
       case SessionLoading():
         return location == splash ? null : splash;
+      case SessionFailed():
+        return location == sessionError ? null : sessionError;
       case SignedOut():
         return _public.contains(location) ? null : login;
       case SignedIn(account: null):

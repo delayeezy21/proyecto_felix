@@ -73,6 +73,24 @@ void main() {
     expect(find.text('Completa tu registro'), findsOneWidget);
   });
 
+  testWidgets('si la cuenta no carga, ofrece reintentar y no queda pegada', (
+    tester,
+  ) async {
+    auth = FakeAuthRepository(userId: 'u1');
+    profiles = FakeProfileRepository(
+      auth,
+      accounts: {'u1': const Account(role: AppRole.admin, displayName: 'a')},
+    )..failFetch = true;
+    await tester.pumpWidget(testApp(auth: auth, profiles: profiles));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('session-error')), findsOneWidget);
+
+    profiles.failFetch = false;
+    await tester.tap(find.byKey(const Key('session-retry')));
+    await tester.pumpAndSettle();
+    expect(find.text('Administración'), findsOneWidget);
+  });
+
   testWidgets('cerrar sesión vuelve al login', (tester) async {
     auth = FakeAuthRepository(userId: 'u1');
     profiles = FakeProfileRepository(

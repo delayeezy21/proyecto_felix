@@ -66,6 +66,11 @@ final class SignedOut extends SessionSnapshot {
   const new();
 }
 
+/// No se pudo cargar la cuenta (error de red o del backend).
+final class SessionFailed extends SessionSnapshot {
+  const new();
+}
+
 /// Usuario autenticado. `account` es null si aún no completa el registro.
 final class SignedIn extends SessionSnapshot {
   const new(this.account);

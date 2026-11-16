@@ -36,6 +36,20 @@ jobs:
       - run: supabase test db
       - name: E2E Auth + REST (grants y RLS reales)
         run: node tool/e2e/auth_e2e.mjs "$(supabase status -o json | sed -n '/^{/,$p')"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.9
+          channel: stable
+          cache: true
+      - name: Smoke de repositorios Flutter contra el backend real
+        run: |
+          flutter pub get
+          ST="$(supabase status -o json | sed -n '/^{/,$p')"
+          PUB=$(echo "$ST" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).PUBLISHABLE_KEY))')
+          SRV=$(echo "$ST" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).SERVICE_ROLE_KEY))')
+          flutter test tool/smoke/repos_smoke_test.dart \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY=$PUB \
+            --dart-define=SUPABASE_SERVICE_KEY=$SRV
 
   secrets:
     name: Sin secretos en el repo
