@@ -27,3 +27,15 @@ flutter analyze
 flutter test
 npx --yes supabase@3.2.0 test db   # pgTAP (requiere Docker)
 ```
+
+## Probar en iPhone (sin Mac)
+
+La app nativa de iOS necesita un Mac para compilarse. Mientras tanto se prueba la
+**versión web en Safari**, en la misma red Wi-Fi que el PC:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tool\firewall_lan.ps1   # una vez (pide admin)
+powershell -ExecutionPolicy Bypass -File tool\iphone_web.ps1     # compila y sirve
+# al terminar:
+powershell -ExecutionPolicy Bypass -File tool\firewall_lan.ps1 -Cerrar
+```
