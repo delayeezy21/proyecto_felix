@@ -3,9 +3,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Error de autenticación con un mensaje listo para mostrar al usuario.
 class AuthFailure implements Exception {
-  const new(this.message);
+  const new(this.message, {this.code});
 
   final String message;
+
+  /// Código de Supabase Auth (por ejemplo 'email_not_confirmed').
+  final String? code;
+
+  bool get isEmailNotConfirmed => code == 'email_not_confirmed';
 
   @override
   String toString() => 'AuthFailure: $message';
@@ -34,6 +39,9 @@ abstract interface class AuthRepository {
     required String password,
   });
 
+  /// Reenvía el correo de confirmación de registro.
+  Future<void> resendConfirmation({required String email});
+
   Future<void> signInWithGoogle();
 
   Future<void> signOut();
@@ -41,6 +49,11 @@ abstract interface class AuthRepository {
 
 /// Deep link de retorno para OAuth y confirmación de email en móvil.
 const authRedirectUrl = 'cl.proyectofelix://login-callback';
+
+/// A dónde vuelve el usuario tras confirmar el correo o tras OAuth: en Web, el
+/// mismo origen desde el que se abrió la app (localhost o la IP de la red
+/// local); en móvil y escritorio, el deep link.
+String authRedirectTarget() => kIsWeb ? Uri.base.origin : authRedirectUrl;
 
 class SupabaseAuthRepository implements AuthRepository {
   new(this._auth);
@@ -70,7 +83,7 @@ class SupabaseAuthRepository implements AuthRepository {
       () => _auth.signUp(
         email: email.trim(),
         password: password,
-        emailRedirectTo: kIsWeb ? null : authRedirectUrl,
+        emailRedirectTo: authRedirectTarget(),
       ),
     );
     return res.session == null
@@ -79,10 +92,19 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> resendConfirmation({required String email}) => _guard(
+    () => _auth.resend(
+      type: OtpType.signup,
+      email: email.trim(),
+      emailRedirectTo: authRedirectTarget(),
+    ),
+  );
+
+  @override
   Future<void> signInWithGoogle() => _guard(
     () => _auth.signInWithOAuth(
       OAuthProvider.google,
-      redirectTo: kIsWeb ? null : authRedirectUrl,
+      redirectTo: authRedirectTarget(),
     ),
   );
 
@@ -93,7 +115,7 @@ class SupabaseAuthRepository implements AuthRepository {
     try {
       return await action();
     } on AuthException catch (e) {
-      throw AuthFailure(authErrorMessage(e.code, e.message));
+      throw AuthFailure(authErrorMessage(e.code, e.message), code: e.code);
     }
   }
 }

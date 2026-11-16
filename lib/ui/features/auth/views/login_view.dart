@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/core/config/env_provider.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
+import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 import 'package:proyecto_felix/domain/validators.dart';
+import 'package:proyecto_felix/ui/core/dev_mail_hint.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 
@@ -26,8 +28,19 @@ class _LoginViewState extends ConsumerState<LoginView> {
     super.dispose();
   }
 
+  String? _resentTo;
+
+  Future<void> _resend() async {
+    final email = _email.text.trim();
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .resendConfirmation(email: email);
+    if (ok && mounted) setState(() => _resentTo = email);
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _resentTo = null);
     await ref
         .read(authControllerProvider.notifier)
         .signIn(email: _email.text, password: _password.text);
@@ -75,7 +88,26 @@ class _LoginViewState extends ConsumerState<LoginView> {
         const SizedBox(height: 16),
         if (state case AsyncError(:final error)) ...[
           FormError(errorMessage(error)),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          if (error is AuthFailure && error.isEmailNotConfirmed) ...[
+            OutlinedButton(
+              key: const Key('login-resend'),
+              onPressed: busy ? null : _resend,
+              child: const Text('Reenviar correo de confirmación'),
+            ),
+            const SizedBox(height: 12),
+            const DevMailHint(),
+            const SizedBox(height: 12),
+          ],
+        ],
+        if (_resentTo != null && !state.hasError) ...[
+          Text(
+            'Te reenviamos el enlace de confirmación a $_resentTo.',
+            key: const Key('login-resent'),
+          ),
+          const SizedBox(height: 12),
+          const DevMailHint(),
+          const SizedBox(height: 12),
         ],
         FilledButton(
           key: const Key('login-submit'),

@@ -59,4 +59,23 @@ void main() {
       }
     });
   });
+
+  group('Env.isLocalBackend', () {
+    test('localhost, 127.0.0.1 y redes privadas son locales', () {
+      for (final url in [
+        'http://127.0.0.1:54321',
+        'http://localhost:54321',
+        'http://192.168.100.5:54321',
+        'http://10.0.0.8:54321',
+        'http://172.20.1.2:54321',
+      ]) {
+        expect(_env(url: url).isLocalBackend, isTrue, reason: url);
+      }
+    });
+
+    test('un proyecto en la nube no es local', () {
+      expect(_env(url: 'https://abc.supabase.co').isLocalBackend, isFalse);
+      expect(_env(url: 'http://172.32.0.1:54321').isLocalBackend, isFalse);
+    });
+  });
 }

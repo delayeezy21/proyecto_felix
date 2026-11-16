@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 import 'package:proyecto_felix/domain/validators.dart';
+import 'package:proyecto_felix/ui/core/dev_mail_hint.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 
@@ -51,6 +52,8 @@ class _SignUpViewState extends ConsumerState<SignUpView> {
             'cuenta. Después de confirmarla, inicia sesión.',
             key: const Key('signup-confirmation'),
           ),
+          const SizedBox(height: 16),
+          const DevMailHint(),
           const SizedBox(height: 24),
           FilledButton(
             onPressed: () => context.go(AppRoutes.login),

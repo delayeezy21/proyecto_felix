@@ -15,6 +15,9 @@ class AuthController extends AsyncNotifier<void> {
 
   Future<bool> signInWithGoogle() => _run(_repo.signInWithGoogle);
 
+  Future<bool> resendConfirmation({required String email}) =>
+      _run(() => _repo.resendConfirmation(email: email));
+
   Future<bool> signOut() => _run(_repo.signOut);
 
   /// Devuelve el resultado, o null si falló (el error queda en `state`).

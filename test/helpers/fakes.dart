@@ -31,6 +31,7 @@ class FakeAuthRepository implements AuthRepository {
   final signInCalls = <(String, String)>[];
   final signUpCalls = <(String, String)>[];
   int googleCalls = 0;
+  final resendCalls = <String>[];
 
   String? get userId => _userId;
 
@@ -71,6 +72,12 @@ class FakeAuthRepository implements AuthRepository {
     signUpCalls.add((email, password));
     _maybeFail();
     return signUpResult;
+  }
+
+  @override
+  Future<void> resendConfirmation({required String email}) async {
+    resendCalls.add(email);
+    _maybeFail();
   }
 
   @override

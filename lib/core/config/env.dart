@@ -52,6 +52,20 @@ class Env {
 
   static bool _isTrue(String value) => value.trim().toLowerCase() == 'true';
 
+  /// Backend local (Supabase CLI): los correos no salen a internet, quedan en
+  /// Mailpit. Se usa para mostrar ayudas de desarrollo.
+  bool get isLocalBackend {
+    final host = Uri.tryParse(supabaseUrl)?.host ?? '';
+    return host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host.startsWith('192.168.') ||
+        host.startsWith('10.') ||
+        _privateClassB.hasMatch(host);
+  }
+
+  /// 172.16.0.0 – 172.31.255.255 (red privada clase B).
+  static final _privateClassB = RegExp(r'^172\.(1[6-9]|2\d|3[01])\.');
+
   bool get isSupabaseConfigured =>
       supabaseUrl.isNotEmpty && supabasePublishableKey.isNotEmpty;
 

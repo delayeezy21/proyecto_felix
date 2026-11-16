@@ -54,6 +54,40 @@ void main() {
       expect(find.text('Correo o contraseña incorrectos.'), findsOneWidget);
     });
 
+    testWidgets('cuenta sin confirmar: ofrece reenviar y avisa de Mailpit', (
+      tester,
+    ) async {
+      auth.nextFailure = const AuthFailure(
+        'Confirma tu correo antes de entrar.',
+        code: 'email_not_confirmed',
+      );
+      await openLogin(tester);
+      await tester.enterText(find.byKey(const Key('login-email')), 'a@b.cl');
+      await tester.enterText(find.byKey(const Key('login-password')), 'x');
+      await tester.tap(find.byKey(const Key('login-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text('Confirma tu correo antes de entrar.'), findsOneWidget);
+      expect(find.byKey(const Key('dev-mail-hint')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('login-resend')));
+      await tester.pumpAndSettle();
+      expect(auth.resendCalls, ['a@b.cl']);
+      expect(find.byKey(const Key('login-resent')), findsOneWidget);
+    });
+
+    testWidgets('credenciales inválidas no ofrecen reenviar', (tester) async {
+      auth.nextFailure = const AuthFailure(
+        'Correo o contraseña incorrectos.',
+        code: 'invalid_credentials',
+      );
+      await openLogin(tester);
+      await tester.enterText(find.byKey(const Key('login-email')), 'a@b.cl');
+      await tester.enterText(find.byKey(const Key('login-password')), 'x');
+      await tester.tap(find.byKey(const Key('login-submit')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('login-resend')), findsNothing);
+    });
+
     testWidgets('sin Google habilitado no muestra el botón', (tester) async {
       await openLogin(tester);
       expect(find.byKey(const Key('login-google')), findsNothing);
@@ -116,6 +150,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(auth.signUpCalls, [('a@b.cl', 'Felix2026')]);
       expect(find.byKey(const Key('signup-confirmation')), findsOneWidget);
+      expect(find.byKey(const Key('dev-mail-hint')), findsOneWidget);
     });
   });
 }
