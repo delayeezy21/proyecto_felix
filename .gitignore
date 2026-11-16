@@ -2,7 +2,39 @@
 .claude/state/
 .claude/settings.local.json
 
-# Secretos
+# Secretos (la plantilla versionada es env.example, sin punto inicial)
 .env
 .env.*
 secrets/
+supabase/.env
+supabase/.env.*
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+*.iml
+.idea/
+.vscode/
+*.log
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# Android
+/android/app/debug
+/android/app/profile
+/android/app/release
+*.keystore
+*.jks
+key.properties
+local.properties
+
+# Sistema
+.DS_Store
+Thumbs.db

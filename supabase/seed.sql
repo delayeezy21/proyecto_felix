@@ -1,0 +1,2 @@
+-- Semillas ficticias para desarrollo local (nunca datos reales).
+-- Se completan desde la fase 2 (catálogos) en adelante.

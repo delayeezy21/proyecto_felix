@@ -12,8 +12,10 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 
 ## Comandos de prueba
 - `flutter analyze` · `flutter test` · `flutter test integration_test`
-- `supabase start` (requiere Docker) · `supabase test db` (pgTAP) · `supabase db advisors`
+- Supabase CLI fijada vía npx (no está instalada global): `npx --yes supabase@3.2.0 start` (requiere Docker) · `... test db` (pgTAP) · `... db advisors`
 - Ejecutar: `flutter run -d windows --dart-define-from-file=.env` (o `-d chrome`, `-d <android>`)
+- La plantilla de entorno es `env.example` (sin punto: Claude Code tiene bloqueado leer `.env.*`).
+- `supabase_flutter` fijado en 2.x (v3 aún es prerelease); la clave va en `publishableKey`.
 
 ## Decisiones no obvias
 - Windows usa siempre OpenStreetMap (`google_maps_flutter` no soporta Windows) y no tiene FCM: allí los avisos van por Realtime dentro de la app.

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    name: Flutter (analyze + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.9
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test
+
+  database:
+    name: Supabase (pgTAP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.2.0
+      - run: supabase db start
+      - run: supabase test db
+
+  secrets:
+    name: Sin secretos en el repo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Buscar claves y archivos .env versionados
+        run: |
+          if git ls-files | grep -E '(^|/)\.env($|\.)'; then
+            echo "Hay archivos .env versionados"; exit 1
+          fi
+          if git grep -nE 'sb_secret_[A-Za-z0-9]|service_role["'"'"']?\s*[:=]\s*["'"'"']?eyJ|-----BEGIN (RSA |EC )?PRIVATE KEY-----|AIza[0-9A-Za-z_-]{35}' -- ':!.github/workflows/ci.yml'; then
+            echo "Posible secreto en el código"; exit 1
+          fi
+          echo "OK: sin secretos detectados"
