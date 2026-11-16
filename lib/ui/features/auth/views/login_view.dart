@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:proyecto_felix/core/config/env_provider.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/domain/validators.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
@@ -82,17 +83,19 @@ class _LoginViewState extends ConsumerState<LoginView> {
           child: const Text('Entrar'),
         ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
-          key: const Key('login-google'),
-          onPressed: busy
-              ? null
-              : () => ref
-                    .read(authControllerProvider.notifier)
-                    .signInWithGoogle(),
-          icon: const Icon(Icons.login),
-          label: const Text('Continuar con Google'),
-        ),
-        const SizedBox(height: 12),
+        if (ref.watch(envProvider).googleAuthEnabled) ...[
+          OutlinedButton.icon(
+            key: const Key('login-google'),
+            onPressed: busy
+                ? null
+                : () => ref
+                      .read(authControllerProvider.notifier)
+                      .signInWithGoogle(),
+            icon: const Icon(Icons.login),
+            label: const Text('Continuar con Google'),
+          ),
+          const SizedBox(height: 12),
+        ],
         TextButton(
           key: const Key('login-go-signup'),
           onPressed: busy ? null : () => context.go(AppRoutes.signUp),

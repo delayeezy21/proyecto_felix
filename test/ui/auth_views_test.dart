@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:proyecto_felix/core/config/env.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 
 import '../helpers/fakes.dart';
@@ -53,8 +54,28 @@ void main() {
       expect(find.text('Correo o contraseña incorrectos.'), findsOneWidget);
     });
 
-    testWidgets('el botón de Google llama al repositorio', (tester) async {
+    testWidgets('sin Google habilitado no muestra el botón', (tester) async {
       await openLogin(tester);
+      expect(find.byKey(const Key('login-google')), findsNothing);
+    });
+
+    testWidgets('con Google habilitado el botón llama al repositorio', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        testApp(
+          auth: auth,
+          profiles: profiles,
+          env: const Env(
+            supabaseUrl: 'http://127.0.0.1:54321',
+            supabasePublishableKey: 'clave-de-prueba',
+            mapProvider: MapProvider.osm,
+            mapsApiKey: '',
+            googleAuthEnabled: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('login-google')));
       await tester.pumpAndSettle();
       expect(auth.googleCalls, 1);

@@ -23,9 +23,13 @@ class Env {
     required this.supabasePublishableKey,
     required this.mapProvider,
     required this.mapsApiKey,
+    this.googleAuthEnabled = false,
   });
 
   factory fromEnvironment() => Env(
+    googleAuthEnabled: _isTrue(
+      const String.fromEnvironment('GOOGLE_AUTH_ENABLED'),
+    ),
     supabaseUrl: const String.fromEnvironment('SUPABASE_URL'),
     supabasePublishableKey: const String.fromEnvironment(
       'SUPABASE_PUBLISHABLE_KEY',
@@ -40,6 +44,13 @@ class Env {
   final String supabasePublishableKey;
   final MapProvider mapProvider;
   final String mapsApiKey;
+
+  /// Muestra "Continuar con Google". Debe coincidir con
+  /// `[auth.external.google] enabled` en Supabase; si no, el login falla con
+  /// "provider is not enabled".
+  final bool googleAuthEnabled;
+
+  static bool _isTrue(String value) => value.trim().toLowerCase() == 'true';
 
   bool get isSupabaseConfigured =>
       supabaseUrl.isNotEmpty && supabasePublishableKey.isNotEmpty;
