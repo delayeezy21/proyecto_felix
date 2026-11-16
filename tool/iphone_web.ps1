@@ -19,7 +19,8 @@ param(
   [int]$Port = 8080,
   [string]$Ip = '',
   [string]$DemoEmail = 'demo@felix.local',
-  [string]$DemoPassword = 'Felix2026'
+  [string]$DemoPassword = 'Felix2026',
+  [string]$AdminEmail = 'admin@felix.local'
 )
 # Continue: en PowerShell 5.1, la salida stderr de comandos nativos (npx, flutter)
 # se convierte en excepción con 'Stop'. Los errores se validan a mano con throw.
@@ -57,18 +58,35 @@ Paso 3 'Compilando la app web (tarda ~1-2 min)...'
   '--dart-define=MAP_PROVIDER=osm'
 if ($LASTEXITCODE -ne 0) { throw 'Falló la compilación web.' }
 
-Paso 4 "Creando el usuario de prueba $DemoEmail (si no existe)..."
+Paso 4 "Creando usuarios de prueba (si no existen)..."
 $headers = @{ apikey = $status.SERVICE_ROLE_KEY; Authorization = "Bearer $($status.SERVICE_ROLE_KEY)" }
-$body = @{ email = $DemoEmail; password = $DemoPassword; email_confirm = $true } | ConvertTo-Json
-try {
-  Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:54321/auth/v1/admin/users" `
-    -Headers $headers -ContentType 'application/json' -Body $body -ErrorAction Stop | Out-Null
-  Write-Host '   Usuario creado.'
-} catch {
-  if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 422) {
-    Write-Host '   Ya existía. OK.'
-  } else { throw }
+
+function Crear-Usuario($email) {
+  $body = @{ email = $email; password = $DemoPassword; email_confirm = $true } | ConvertTo-Json
+  try {
+    $u = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:54321/auth/v1/admin/users" `
+      -Headers $headers -ContentType 'application/json' -Body $body -ErrorAction Stop
+    Write-Host "   $email creado."
+    return $u.id
+  } catch {
+    if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 422) {
+      Write-Host "   $email ya existía. OK."
+      $list = Invoke-RestMethod -Uri "http://127.0.0.1:54321/auth/v1/admin/users?per_page=1000" `
+        -Headers $headers -ErrorAction Stop
+      return ($list.users | Where-Object { $_.email -eq $email } | Select-Object -First 1).id
+    } else { throw }
+  }
 }
+
+[void](Crear-Usuario $DemoEmail)
+
+# Admin demo: el rol admin no se autoasigna; se crea con la clave de servicio.
+$adminId = Crear-Usuario $AdminEmail
+$rol = @{ user_id = $adminId; role = 'admin' } | ConvertTo-Json
+$h2 = $headers.Clone(); $h2['Prefer'] = 'resolution=ignore-duplicates'
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:54321/rest/v1/user_roles" `
+  -Headers $h2 -ContentType 'application/json' -Body $rol -ErrorAction Stop | Out-Null
+Write-Host "   $AdminEmail tiene rol admin."
 
 Paso 5 'Sirviendo la app. Deja esta ventana abierta mientras pruebas.'
 Write-Host ''
@@ -76,6 +94,7 @@ Write-Host '   ==============================================' -ForegroundColor 
 Write-Host "   En el iPhone abre Safari y entra a:"           -ForegroundColor Green
 Write-Host "   http://${Ip}:$Port"                             -ForegroundColor Yellow
 Write-Host "   Usuario: $DemoEmail   Clave: $DemoPassword"     -ForegroundColor Green
+Write-Host "   Admin:   $AdminEmail  Clave: $DemoPassword"     -ForegroundColor Green
 Write-Host "   Correos de confirmación (en el PC): http://127.0.0.1:54324" -ForegroundColor Green
 Write-Host '   Para detener: Ctrl + C'                         -ForegroundColor Green
 Write-Host '   ==============================================' -ForegroundColor Green

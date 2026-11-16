@@ -1,4 +1,4 @@
-// E2E de autenticación y registro (fase 1) contra Supabase local: Auth + PostgREST.
+// E2E de autenticación y registro (fase 1) y catálogos (fase 2) contra Supabase local.
 // Uso: node tool/e2e/auth_e2e.mjs "$(npx --yes supabase@3.2.0 status -o json | sed -n '/^{/,$p')"
 const st = JSON.parse(process.argv[2]);
 const API = st.API_URL;
@@ -46,9 +46,15 @@ const privacy = await call('/rest/v1/rpc/current_legal_version', { method: 'POST
 check(terms.status === 200 && typeof terms.json === 'string', `anónimo lee la versión de términos (${terms.json})`);
 
 const a = await newUser('dueno');
+const communes = await call('/rest/v1/communes?select=id&name=eq.Santiago', { token: a });
+check(communes.status === 200 && communes.json.length === 1, 'un usuario autenticado lee las comunas');
+const noCommune = await call('/rest/v1/rpc/complete_registration', { method: 'POST', token: a, body: {
+  p_role: 'owner', p_display_name: 'Ana', p_phone: null,
+  p_terms_version: terms.json, p_privacy_version: privacy.json } });
+check(noCommune.status >= 400, 'el dueño no puede registrarse sin comuna');
 const regA = await call('/rest/v1/rpc/complete_registration', { method: 'POST', token: a, body: {
   p_role: 'owner', p_display_name: 'Ana', p_phone: '+56 9 1234 5678',
-  p_terms_version: terms.json, p_privacy_version: privacy.json } });
+  p_terms_version: terms.json, p_privacy_version: privacy.json, p_commune_id: communes.json[0]?.id } });
 check(regA.status === 200 && regA.json === 'owner', 'el dueño completa el registro vía API');
 
 const rolesA = await call('/rest/v1/user_roles?select=role', { token: a });
@@ -81,5 +87,45 @@ check(anonRoles.status === 401 || anonRoles.status === 403, `anónimo no lee rol
 const privateRpc = await call('/rest/v1/rpc/is_admin', { method: 'POST', token: a, body: {} });
 check(privateRpc.status === 404, `los helpers de private no se exponen por la API (HTTP ${privateRpc.status})`);
 
-console.log(fails === 0 ? '\nE2E fase 1: TODO OK' : `\nE2E fase 1: ${fails} fallas`);
+// --- Fase 2: catálogos y panel admin -------------------------------------------
+// El admin no se autorregistra: se le asigna el rol con la clave de servicio.
+const adminTok = await newUser('admin');
+const adminId = JSON.parse(Buffer.from(adminTok.split('.')[1], 'base64url')).sub;
+const mk = await call('/rest/v1/user_roles', { method: 'POST', key: SRV, token: SRV,
+  body: { user_id: adminId, role: 'admin' } });
+check(mk.status === 201, 'la clave de servicio asigna el rol admin');
+
+const slug = `e2e_${stamp}`.replace(/[0-9]/g, (d) => 'abcdefghij'[d]);
+const newSpecies = await call('/rest/v1/species', { method: 'POST', token: adminTok,
+  body: { slug, name: `E2E ${slug}` }, prefer: 'return=representation' });
+check(newSpecies.status === 201, 'el admin crea una especie por REST');
+
+const ownerSpecies = await call('/rest/v1/species', { method: 'POST', token: a,
+  body: { slug: 'hack', name: 'Hack' } });
+check(ownerSpecies.status === 401 || ownerSpecies.status === 403,
+  `el dueño no crea especies (HTTP ${ownerSpecies.status})`);
+
+const t = await call('/rest/v1/tariffs?select=id,base_price&species_id=is.null&limit=1', { token: adminTok });
+const upd = await call(`/rest/v1/tariffs?id=eq.${t.json[0].id}`, { method: 'PATCH', token: adminTok,
+  body: { base_price: t.json[0].base_price }, prefer: 'return=representation' });
+check(upd.status === 200 && upd.json.length === 1, 'el admin actualiza una tarifa');
+
+const ownerPricing = await call('/rest/v1/pricing_config', { method: 'POST', token: a,
+  body: { commission_pct: 0, foundation_pct: 0, urgent_pct: 0, per_km: 0, free_km: 0, cancel_fee: 0 } });
+check(ownerPricing.status === 401 || ownerPricing.status === 403,
+  'el dueño no cambia los parámetros económicos');
+
+const audit = await call(`/rest/v1/admin_audit_log?select=table_name&actor_id=eq.${adminId}`, { token: adminTok });
+check(audit.status === 200 && audit.json.some((r) => r.table_name === 'species'),
+  'los cambios del admin quedan en el log de auditoría');
+const auditOwner = await call('/rest/v1/admin_audit_log?select=id', { token: a });
+check(auditOwner.status === 200 && auditOwner.json.length === 0, 'el dueño no ve el log de auditoría');
+
+const pricing = await call('/rest/v1/rpc/current_pricing_config', { method: 'POST', token: a, body: {} });
+check(pricing.status === 200 && pricing.json.length === 1, 'un usuario lee los parámetros vigentes');
+
+// Limpieza: la especie de prueba no debe quedar en la base local.
+await call(`/rest/v1/species?slug=eq.${slug}`, { method: 'DELETE', key: SRV, token: SRV });
+
+console.log(fails === 0 ? '\nE2E: TODO OK' : `\nE2E: ${fails} fallas`);
 process.exit(fails ? 1 : 0);

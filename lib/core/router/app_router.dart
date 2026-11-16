@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
+import 'package:proyecto_felix/ui/features/admin/views/admin_home_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/login_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/sign_up_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/role_home_view.dart';
@@ -72,10 +73,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.admin,
-        builder: (context, state) => const RoleHomeView(
-          title: 'Administración',
-          message: 'Aquí aprobarás veterinarios y gestionarás catálogos.',
-        ),
+        builder: (context, state) => const AdminHomeView(),
       ),
       GoRoute(
         path: AppRoutes.foundation,

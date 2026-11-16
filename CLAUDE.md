@@ -31,6 +31,10 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Helpers `security definer` solo en el esquema `private`, con `set search_path = ''` y `(select auth.uid())`.
 - Los roles van en `user_roles`, nunca en `user_metadata`.
 - Montos en CLP como `integer`.
+- Datos de referencia (regiones, 346 comunas, especies, especialidades, tarifas, parámetros) van en migraciones; datos demo (clínicas ficticias) en `seed.sql`. Los catálogos no se borran: se desactivan (`active`).
+- `pricing_config` es versionada (solo INSERT). Cambios del admin en catálogos quedan en `admin_audit_log` (trigger `private.log_admin_change`).
+- Para no perder datos locales, aplicar migraciones con `supabase migration up` (no `db reset`).
+- `dart fix` puede introducir imports de `riverpod/src` y `riverpod: any`: revisar el diff después de usarlo.
 
 ## Reglas de negocio (valores por defecto, configurables en `pricing_config`)
 - Comisión 15 % del servicio; 20 % de la comisión va a la fundación elegida (o a la por defecto). Donación extra: 100 % a la fundación.

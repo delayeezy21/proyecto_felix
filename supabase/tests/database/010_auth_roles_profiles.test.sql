@@ -1,6 +1,6 @@
 -- Fase 1: registro, roles, perfiles, términos, aviso de privacidad y consentimientos.
 begin;
-select plan(26);
+select plan(27);
 
 -- Fixtures ------------------------------------------------------------------
 insert into public.legal_versions (kind, version, effective_from) values
@@ -28,7 +28,7 @@ select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 set local role authenticated;
 
 select is(
-  public.complete_registration('owner', ' Ana ', '+56 9 1234 5678', 'test-v1', 'test-v1'),
+  public.complete_registration('owner', ' Ana ', '+56 9 1234 5678', 'test-v1', 'test-v1', (select id from public.communes where name = 'Santiago')),
   'owner', 'un dueño completa su registro');
 
 select is((select role from public.user_roles), 'owner', 'el dueño ve su propio rol');
@@ -40,8 +40,13 @@ select is((select count(*)::int from public.privacy_notice_views), 1,
   'queda registrado el aviso de privacidad mostrado');
 
 select throws_ok(
-  $$ select public.complete_registration('owner', 'Ana', null, 'test-v1', 'test-v1') $$,
+  $$ select public.complete_registration('owner', 'Ana', null, 'test-v1', 'test-v1',
+       (select id from public.communes where name = 'Santiago')) $$,
   '23505', null, 'no puede registrarse dos veces');
+
+select throws_ok(
+  $$ select public.complete_registration('owner', 'Ana', null, 'test-v1', 'test-v1') $$,
+  '22023', 'La comuna es obligatoria', 'el dueño debe indicar su comuna');
 
 -- No puede cambiar su rol (no hay política UPDATE ni privilegio).
 select throws_ok(
@@ -92,7 +97,7 @@ select throws_ok(
   $$ select public.complete_registration('owner', 'Bea', null, 'test-v1', 'vieja') $$,
   '22023', null, 'rechaza una versión de privacidad no vigente');
 
-select public.complete_registration('owner', 'Bea', null, 'test-v1', 'test-v1');
+select public.complete_registration('owner', 'Bea', null, 'test-v1', 'test-v1', (select id from public.communes where name = 'Ñuñoa'));
 
 -- Aislamiento entre usuarios.
 select is((select count(*)::int from public.owner_profiles), 1,

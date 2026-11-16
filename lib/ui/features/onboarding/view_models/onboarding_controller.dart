@@ -19,6 +19,7 @@ class OnboardingController extends AsyncNotifier<void> {
     required String? phone,
     required LegalVersions legal,
     required bool marketingConsent,
+    int? communeId,
   }) async {
     state = const AsyncLoading();
     final next = await AsyncValue.guard(
@@ -30,6 +31,7 @@ class OnboardingController extends AsyncNotifier<void> {
             phone: phone,
             legal: legal,
             marketingConsent: marketingConsent,
+            communeId: communeId,
           ),
     );
     if (!ref.mounted) return false;

@@ -24,6 +24,7 @@ abstract interface class ProfileRepository {
     required String? phone,
     required LegalVersions legal,
     required bool marketingConsent,
+    int? communeId,
   });
 }
 
@@ -90,6 +91,7 @@ class SupabaseProfileRepository implements ProfileRepository {
     required String? phone,
     required LegalVersions legal,
     required bool marketingConsent,
+    int? communeId,
   }) async {
     try {
       await _client.rpc<String>(
@@ -100,6 +102,7 @@ class SupabaseProfileRepository implements ProfileRepository {
           'p_phone': phone?.trim(),
           'p_terms_version': legal.terms,
           'p_privacy_version': legal.privacy,
+          'p_commune_id': communeId,
         },
       );
       if (marketingConsent) {

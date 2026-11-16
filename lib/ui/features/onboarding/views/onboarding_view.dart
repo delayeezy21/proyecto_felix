@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
+import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/validators.dart';
+import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 import 'package:proyecto_felix/ui/features/onboarding/view_models/onboarding_controller.dart';
@@ -23,6 +25,8 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
   bool _acceptTerms = false;
   bool _marketing = false;
   bool _showTermsError = false;
+  int? _regionId;
+  int? _communeId;
 
   @override
   void dispose() {
@@ -43,6 +47,7 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
           phone: _role == AppRole.owner ? _phone.text : null,
           legal: legal,
           marketingConsent: _marketing,
+          communeId: _role == AppRole.owner ? _communeId : null,
         );
   }
 
@@ -156,6 +161,17 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
               keyboardType: TextInputType.phone,
               validator: (v) => Validators.phone(v, required: true),
             ),
+            const SizedBox(height: 12),
+            _RegionCommunePicker(
+              regionId: _regionId,
+              communeId: _communeId,
+              enabled: !busy,
+              onRegion: (id) => setState(() {
+                _regionId = id;
+                _communeId = null;
+              }),
+              onCommune: (id) => setState(() => _communeId = id),
+            ),
           ],
           if (_role == AppRole.vet) ...[
             const SizedBox(height: 12),
@@ -234,6 +250,62 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Región → comuna (obligatoria para dueños; SPEC HU1.1).
+class _RegionCommunePicker extends ConsumerWidget {
+  const new({
+    required this.regionId,
+    required this.communeId,
+    required this.enabled,
+    required this.onRegion,
+    required this.onCommune,
+  });
+
+  final int? regionId;
+  final int? communeId;
+  final bool enabled;
+  final ValueChanged<int?> onRegion;
+  final ValueChanged<int?> onCommune;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final regions = ref.watch(regionsProvider);
+    final communes = regionId == null
+        ? const AsyncData<List<Commune>>([])
+        : ref.watch(communesProvider(regionId!));
+
+    return Column(
+      children: [
+        DropdownButtonFormField<int>(
+          key: const Key('onboarding-region'),
+          initialValue: regionId,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Región'),
+          items: [
+            for (final r in regions.value ?? const <Region>[])
+              DropdownMenuItem(value: r.id, child: Text(r.name)),
+          ],
+          onChanged: enabled ? onRegion : null,
+          validator: (v) => v == null ? 'Elige tu región' : null,
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<int>(
+          // La key cambia con la región para reiniciar la selección.
+          key: Key('onboarding-commune-$regionId'),
+          initialValue: communeId,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Comuna'),
+          items: [
+            for (final c in communes.value ?? const <Commune>[])
+              DropdownMenuItem(value: c.id, child: Text(c.name)),
+          ],
+          onChanged: enabled && regionId != null ? onCommune : null,
+          validator: (v) => v == null ? 'Elige tu comuna' : null,
+        ),
+      ],
     );
   }
 }

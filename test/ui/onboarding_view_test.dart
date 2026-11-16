@@ -14,6 +14,21 @@ void main() {
     profiles = FakeProfileRepository(auth);
   });
 
+  Future<void> pickCommune(WidgetTester tester) async {
+    final region = find.byKey(const Key('onboarding-region'));
+    await tester.ensureVisible(region);
+    await tester.tap(region);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Metropolitana de Santiago').last);
+    await tester.pumpAndSettle();
+    final commune = find.byKey(const Key('onboarding-commune-13'));
+    await tester.ensureVisible(commune);
+    await tester.tap(commune);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ñuñoa').last);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> open(WidgetTester tester) async {
     tester.view
       ..physicalSize = const Size(1000, 2000)
@@ -23,6 +38,23 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('el dueño debe elegir región y comuna', (tester) async {
+    await open(tester);
+    await tester.enterText(find.byKey(const Key('onboarding-name')), 'Ana');
+    await tester.enterText(
+      find.byKey(const Key('onboarding-phone')),
+      '+56 9 1234 5678',
+    );
+    await tester.ensureVisible(find.byKey(const Key('onboarding-terms')));
+    await tester.tap(find.byKey(const Key('onboarding-terms')));
+    await tester.ensureVisible(find.byKey(const Key('onboarding-submit')));
+    await tester.tap(find.byKey(const Key('onboarding-submit')));
+    await tester.pump();
+    expect(find.text('Elige tu región'), findsOneWidget);
+    expect(find.text('Elige tu comuna'), findsOneWidget);
+    expect(profiles.registrationCalls, isEmpty);
+  });
+
   testWidgets('no continúa sin aceptar los términos', (tester) async {
     await open(tester);
     await tester.enterText(find.byKey(const Key('onboarding-name')), 'Ana');
@@ -30,6 +62,7 @@ void main() {
       find.byKey(const Key('onboarding-phone')),
       '+56 9 1234 5678',
     );
+    await pickCommune(tester);
     await tester.ensureVisible(find.byKey(const Key('onboarding-submit')));
     await tester.tap(find.byKey(const Key('onboarding-submit')));
     await tester.pump();
@@ -46,6 +79,7 @@ void main() {
       find.byKey(const Key('onboarding-phone')),
       '+56 9 1234 5678',
     );
+    await pickCommune(tester);
     await tester.ensureVisible(find.byKey(const Key('onboarding-terms')));
     await tester.tap(find.byKey(const Key('onboarding-terms')));
     await tester.ensureVisible(find.byKey(const Key('onboarding-submit')));
@@ -56,6 +90,7 @@ void main() {
     expect(call.role, AppRole.owner);
     expect(call.displayName, 'Ana');
     expect(call.phone, '+56 9 1234 5678');
+    expect(call.communeId, 102, reason: 'Ñuñoa');
     expect(call.legal.terms, legalTest.terms);
     expect(call.legal.privacy, legalTest.privacy);
     expect(call.marketing, isFalse, reason: 'el consentimiento es opcional');
@@ -81,6 +116,7 @@ void main() {
     final call = profiles.registrationCalls.single;
     expect(call.role, AppRole.vet);
     expect(call.phone, isNull);
+    expect(call.communeId, isNull, reason: 'el vet no indica comuna');
     expect(find.text('Cuenta en revisión'), findsOneWidget);
   });
 
@@ -94,6 +130,7 @@ void main() {
       find.byKey(const Key('onboarding-phone')),
       '+56 9 1234 5678',
     );
+    await pickCommune(tester);
     await tester.ensureVisible(find.byKey(const Key('onboarding-terms')));
     await tester.tap(find.byKey(const Key('onboarding-terms')));
     await tester.ensureVisible(find.byKey(const Key('onboarding-submit')));
