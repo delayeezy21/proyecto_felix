@@ -52,10 +52,17 @@ try {
     }
 } catch { }
 $startFile = Join-Path $stateDir "$sessionId.start"
+$statusFile = Join-Path $stateDir "$sessionId.status"
+$fotoInicio = @()
 if (Test-Path $startFile) {
     $inicio = [datetime]::Parse(([IO.File]::ReadAllText($startFile, $utf8)).Trim())
+    if (Test-Path $statusFile) { $fotoInicio = @([IO.File]::ReadAllLines($statusFile, $utf8) | Where-Object { $_ }) }
+} elseif ($Sync) {
+    $inicio = (Get-Date).Date   # manual sin registro: desde las 00:00 de hoy
 } else {
-    $inicio = (Get-Date).Date   # sin registro: desde las 00:00 de hoy
+    # Sin registro de inicio (p. ej. "claude plugin ..."): no es una sesión real.
+    Write-Output "[bitacora] Sin registro de inicio de sesión; no se crea nota."
+    exit 0
 }
 $since = $inicio.ToString('yyyy-MM-ddTHH:mm:ss')
 
@@ -70,6 +77,8 @@ if ($tieneCommits) {
     $archivosCommit = @(& git log --since=$since --name-only --format='' 2>$null | Where-Object { $_ } | Sort-Object -Unique)
 }
 $sinCommit = @(& git status --porcelain -uall 2>$null | Where-Object { $_ -notmatch '\.claude/state/' })
+# Solo lo que cambió durante la sesión (las líneas idénticas a la foto inicial ya estaban).
+$sinCommit = @($sinCommit | Where-Object { $fotoInicio -notcontains $_ })
 Pop-Location
 
 $ahora = Get-Date
@@ -77,7 +86,7 @@ $titulo = 'Bitácora ' + $ahora.ToString('yyyy-MM-dd HH:mm')
 
 if ($commits.Count -eq 0 -and $sinCommit.Count -eq 0) {
     Write-Output "[bitacora] Sin commits ni cambios desde $since; no se crea nota."
-    Remove-Item -Force $startFile -ErrorAction SilentlyContinue
+    Remove-Item -Force $startFile, $statusFile -ErrorAction SilentlyContinue
     exit 0
 }
 
@@ -95,7 +104,7 @@ if ($archivosCommit.Count) { $archivosCommit | ForEach-Object { [void]$sb.Append
 if ($sinCommit.Count) { $sinCommit | ForEach-Object { [void]$sb.AppendLine("- $($_.Trim())") } } else { [void]$sb.AppendLine('- (ninguno)') }
 $contenido = $sb.ToString()
 
-Remove-Item -Force $startFile -ErrorAction SilentlyContinue
+Remove-Item -Force $startFile, $statusFile -ErrorAction SilentlyContinue
 
 if ($Sync) {
     $r = Send-Nota $titulo $contenido

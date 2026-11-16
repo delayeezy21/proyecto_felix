@@ -30,7 +30,16 @@ try {
     }
 } catch { }
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
-[IO.File]::WriteAllText((Join-Path $stateDir "$sessionId.start"), (Get-Date).ToString('o'), $utf8)
+$startFile = Join-Path $stateDir "$sessionId.start"
+# Solo la primera vez: SessionStart se repite en resume/clear/compact con el mismo id.
+if (-not (Test-Path $startFile)) {
+    [IO.File]::WriteAllText($startFile, (Get-Date).ToString('o'), $utf8)
+    # Foto de los cambios sin commit al inicio, para que la bitácora solo cuente lo nuevo.
+    Push-Location $root
+    $foto = @(& git status --porcelain -uall 2>$null | Where-Object { $_ -notmatch '\.claude/state/' })
+    Pop-Location
+    [IO.File]::WriteAllLines((Join-Path $stateDir "$sessionId.status"), [string[]]$foto, $utf8)
+}
 
 # 2) Verificar autenticación real.
 $auth = Invoke-Nlm @('auth', 'check', '--test', '--json')
