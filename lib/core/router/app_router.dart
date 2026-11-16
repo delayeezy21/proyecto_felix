@@ -5,12 +5,14 @@ import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_home_view.dart';
+import 'package:proyecto_felix/ui/features/admin/views/admin_vet_review_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/login_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/sign_up_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/role_home_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/session_error_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/splash_view.dart';
 import 'package:proyecto_felix/ui/features/onboarding/views/onboarding_view.dart';
+import 'package:proyecto_felix/ui/features/vet/views/vet_profile_view.dart';
 
 /// Router con protección por sesión y rol (ver `AppRoutes.redirect`).
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -60,25 +62,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.vet,
-        builder: (context, state) => const RoleHomeView(
-          title: 'Panel veterinario',
-          message: 'Aquí verás tus solicitudes y tu disponibilidad.',
-        ),
+        builder: (context, state) => const VetProfileView(),
         routes: [
           GoRoute(
             path: 'pending',
-            builder: (context, state) => const RoleHomeView(
-              title: 'Cuenta en revisión',
-              message:
-                  'Tu cuenta está pendiente de aprobación. Te avisaremos '
-                  'cuando un administrador revise tus documentos.',
-            ),
+            builder: (context, state) => const VetProfileView(),
           ),
         ],
       ),
       GoRoute(
         path: AppRoutes.admin,
         builder: (context, state) => const AdminHomeView(),
+        routes: [
+          GoRoute(
+            path: 'vets/:id',
+            builder: (context, state) =>
+                AdminVetReviewView(vetId: state.pathParameters['id']!),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.foundation,

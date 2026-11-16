@@ -62,7 +62,7 @@ void main() {
     );
     await tester.pumpWidget(testApp(auth: auth, profiles: profiles));
     await tester.pumpAndSettle();
-    expect(find.text('Cuenta en revisión'), findsOneWidget);
+    expect(find.text('Verificación profesional'), findsOneWidget);
   });
 
   testWidgets('sesión sin registro completo va al onboarding', (tester) async {

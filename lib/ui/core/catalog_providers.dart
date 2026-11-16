@@ -12,3 +12,9 @@ final FutureProviderFamily<List<Commune>, int> communesProvider =
       (ref, regionId) =>
           ref.watch(catalogRepositoryProvider).communes(regionId),
     );
+
+/// Ítems activos de un catálogo (para dueños y vets la RLS oculta inactivos).
+final FutureProviderFamily<List<CatalogItem>, CatalogKind>
+catalogItemsProvider = FutureProvider.family<List<CatalogItem>, CatalogKind>(
+  (ref, kind) => ref.watch(catalogRepositoryProvider).items(kind),
+);

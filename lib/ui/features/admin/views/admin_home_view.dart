@@ -6,6 +6,7 @@ import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/validators.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/features/admin/view_models/admin_catalog_providers.dart';
+import 'package:proyecto_felix/ui/features/admin/views/admin_vet_review_view.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 
 /// Panel del administrador: catálogos, tarifas, parámetros y clínicas 24 h.
@@ -15,7 +16,7 @@ class AdminHomeView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Administración'),
@@ -31,6 +32,7 @@ class AdminHomeView extends ConsumerWidget {
           bottom: const TabBar(
             isScrollable: true,
             tabs: [
+              Tab(text: 'Veterinarios'),
               Tab(text: 'Especies'),
               Tab(text: 'Especialidades'),
               Tab(text: 'Tarifas'),
@@ -41,6 +43,7 @@ class AdminHomeView extends ConsumerWidget {
         ),
         body: const TabBarView(
           children: [
+            AdminVetApplicationsTab(),
             _CatalogTab(kind: CatalogKind.species),
             _CatalogTab(kind: CatalogKind.specialties),
             _TariffsTab(),

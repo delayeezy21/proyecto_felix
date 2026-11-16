@@ -117,7 +117,7 @@ void main() {
     expect(call.role, AppRole.vet);
     expect(call.phone, isNull);
     expect(call.communeId, isNull, reason: 'el vet no indica comuna');
-    expect(find.text('Cuenta en revisión'), findsOneWidget);
+    expect(find.text('Verificación profesional'), findsOneWidget);
   });
 
   testWidgets('muestra el error del backend', (tester) async {

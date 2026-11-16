@@ -9,8 +9,11 @@ import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
+import 'package:proyecto_felix/data/repositories/vet_repository.dart';
+import 'package:proyecto_felix/data/services/platform_services.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
+import 'package:proyecto_felix/domain/models/vet.dart';
 
 const configuredEnv = Env(
   supabaseUrl: 'http://127.0.0.1:54321',
@@ -167,6 +170,9 @@ Widget testApp({
   required FakeAuthRepository auth,
   required FakeProfileRepository profiles,
   FakeCatalogRepository? catalog,
+  FakeVetRepository? vets,
+  FakeDocumentPicker? picker,
+  FakeUrlOpener? opener,
   Env env = configuredEnv,
 }) => ProviderScope(
   overrides: [
@@ -176,6 +182,9 @@ Widget testApp({
     catalogRepositoryProvider.overrideWithValue(
       catalog ?? FakeCatalogRepository(),
     ),
+    vetRepositoryProvider.overrideWithValue(vets ?? FakeVetRepository()),
+    documentPickerProvider.overrideWithValue(picker ?? FakeDocumentPicker()),
+    urlOpenerProvider.overrideWithValue(opener ?? FakeUrlOpener()),
   ],
   child: const FelixApp(),
 );
@@ -345,5 +354,216 @@ class FakeCatalogRepository implements CatalogRepository {
   @override
   Future<void> setClinicActive(String id, {required bool active}) async {
     _maybeFail();
+  }
+}
+
+/// Repositorio de vets en memoria (solicitud propia + revisión del admin).
+class FakeVetRepository implements VetRepository {
+  new({VetProfile? profile})
+    : profile =
+          profile ??
+          const VetProfile(
+            userId: 'v1',
+            displayName: 'Dra. Vera',
+            status: VetStatus.pending,
+          );
+
+  VetProfile profile;
+  final species = <int>{};
+  final specialties = <int>{};
+  final blocks = <AvailabilityBlock>[];
+  final documents = <VetDocument>[];
+  final uploads = <(VetDocumentKind, String)>[];
+  final reviews = <(String, bool, String?, String?)>[];
+  final openedPaths = <String>[];
+  List<VetApplicationSummary> pending = [];
+  VetFailure? nextFailure;
+  int submits = 0;
+
+  void _maybeFail() {
+    final f = nextFailure;
+    if (f != null) {
+      nextFailure = null;
+      throw f;
+    }
+  }
+
+  VetProfile _copy({
+    String? university,
+    int? graduationYear,
+    String? bio,
+    bool? foreignDegree,
+    String? code,
+    DateTime? declaration,
+    DateTime? submittedAt,
+    VetStatus? status,
+  }) => VetProfile(
+    userId: profile.userId,
+    displayName: profile.displayName,
+    status: status ?? profile.status,
+    bio: bio ?? profile.bio,
+    university: university ?? profile.university,
+    graduationYear: graduationYear ?? profile.graduationYear,
+    foreignDegree: foreignDegree ?? profile.foreignDegree,
+    titleVerificationCode: code ?? profile.titleVerificationCode,
+    declarationAcceptedAt: declaration ?? profile.declarationAcceptedAt,
+    submittedAt: submittedAt ?? profile.submittedAt,
+    rejectionReason: profile.rejectionReason,
+  );
+
+  @override
+  Future<VetProfile> myProfile() async => profile;
+
+  @override
+  Future<void> updateProfessionalData({
+    required String? bio,
+    required String? university,
+    required int? graduationYear,
+    required bool foreignDegree,
+    required String? titleVerificationCode,
+  }) async {
+    _maybeFail();
+    profile = _copy(
+      bio: bio,
+      university: university,
+      graduationYear: graduationYear,
+      foreignDegree: foreignDegree,
+      code: titleVerificationCode,
+    );
+  }
+
+  @override
+  Future<void> updateBio(String? bio) async {
+    _maybeFail();
+    profile = _copy(bio: bio);
+  }
+
+  @override
+  Future<void> acceptDeclaration() async {
+    _maybeFail();
+    profile = _copy(declaration: DateTime(2026, 11, 16));
+  }
+
+  @override
+  Future<Set<int>> mySpeciesIds() async => {...species};
+
+  @override
+  Future<void> setSpecies(Set<int> ids) async {
+    _maybeFail();
+    species
+      ..clear()
+      ..addAll(ids);
+  }
+
+  @override
+  Future<Set<int>> mySpecialtyIds() async => {...specialties};
+
+  @override
+  Future<void> setSpecialties(Set<int> ids) async {
+    _maybeFail();
+    specialties
+      ..clear()
+      ..addAll(ids);
+  }
+
+  @override
+  Future<List<AvailabilityBlock>> myAvailability() async => List.of(blocks);
+
+  @override
+  Future<void> addAvailability(int weekday, int startMin, int endMin) async {
+    _maybeFail();
+    blocks.add(
+      AvailabilityBlock(
+        id: 'b${blocks.length}',
+        weekday: weekday,
+        startMin: startMin,
+        endMin: endMin,
+      ),
+    );
+  }
+
+  @override
+  Future<void> removeAvailability(String id) async {
+    _maybeFail();
+    blocks.removeWhere((b) => b.id == id);
+  }
+
+  @override
+  Future<List<VetDocument>> myDocuments() async => List.of(documents);
+
+  @override
+  Future<void> uploadDocument(VetDocumentKind kind, PickedDocument file) async {
+    _maybeFail();
+    uploads.add((kind, file.name));
+    documents.insert(
+      0,
+      VetDocument(
+        id: 'd${documents.length}',
+        kind: kind,
+        mime: file.mime!,
+        sizeBytes: file.bytes.length,
+        uploadedAt: DateTime(2026, 11, 16),
+        reviewStatus: 'pending',
+        storagePath: 'v1/${file.name}',
+      ),
+    );
+  }
+
+  @override
+  Future<void> submitApplication() async {
+    _maybeFail();
+    submits++;
+    profile = _copy(
+      submittedAt: DateTime(2026, 11, 16),
+      status: VetStatus.pending,
+    );
+  }
+
+  @override
+  Future<List<VetApplicationSummary>> pendingApplications() async => pending;
+
+  @override
+  Future<VetApplicationDetail> applicationDetail(String vetId) async =>
+      VetApplicationDetail(
+        profile: profile,
+        documents: documents,
+        speciesNames: const ['Perro'],
+        specialtyNames: const ['Medicina general'],
+      );
+
+  @override
+  Future<String> documentUrl(String storagePath) async {
+    openedPaths.add(storagePath);
+    return 'https://example.test/$storagePath';
+  }
+
+  @override
+  Future<void> review(
+    String vetId, {
+    required bool approve,
+    String? reason,
+    String? notes,
+  }) async {
+    _maybeFail();
+    reviews.add((vetId, approve, reason, notes));
+    pending = pending.where((p) => p.userId != vetId).toList();
+  }
+}
+
+/// Selector de archivos falso: devuelve lo que se le indique.
+class FakeDocumentPicker implements DocumentPicker {
+  PickedDocument? next;
+
+  @override
+  Future<PickedDocument?> pick() async => next;
+}
+
+class FakeUrlOpener implements UrlOpener {
+  final opened = <String>[];
+
+  @override
+  Future<bool> open(String url) async {
+    opened.add(url);
+    return true;
   }
 }

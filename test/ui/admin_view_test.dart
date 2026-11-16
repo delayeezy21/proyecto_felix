@@ -22,7 +22,7 @@ void main() {
     catalog = FakeCatalogRepository();
   });
 
-  Future<void> open(WidgetTester tester, {String? tab}) async {
+  Future<void> open(WidgetTester tester, {String tab = 'Especies'}) async {
     tester.view
       ..physicalSize = const Size(1000, 1600)
       ..devicePixelRatio = 1;
@@ -31,10 +31,10 @@ void main() {
       testApp(auth: auth, profiles: profiles, catalog: catalog),
     );
     await tester.pumpAndSettle();
-    if (tab != null) {
-      await tester.tap(find.text(tab));
-      await tester.pumpAndSettle();
-    }
+    final tabFinder = find.widgetWithText(Tab, tab);
+    await tester.ensureVisible(tabFinder);
+    await tester.tap(tabFinder);
+    await tester.pumpAndSettle();
   }
 
   testWidgets('el admin llega a su panel con los catálogos', (tester) async {

@@ -10,8 +10,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
+import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
+import 'package:proyecto_felix/domain/models/vet.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _url = 'http://127.0.0.1:54321';
@@ -104,5 +106,86 @@ void main() {
     await cat.updateTariffPrice(tariffs.first.id, tariffs.first.basePrice);
     expect((await cat.currentPricing()).commissionPct, greaterThan(0));
     await cat.clinics();
+  });
+
+  test('vet: solicitud completa con Storage y revisión del admin', () async {
+    final c = await _newUser('vet-flow');
+    await SupabaseProfileRepository(c).completeRegistration(
+      role: AppRole.vet,
+      displayName: 'Smoke Vet Flujo',
+      phone: null,
+      legal: await _legal(c),
+      marketingConsent: false,
+    );
+    final vets = SupabaseVetRepository(c);
+    final cat = SupabaseCatalogRepository(c);
+
+    await vets.updateProfessionalData(
+      bio: 'Smoke',
+      university: 'Universidad de Chile',
+      graduationYear: 2015,
+      foreignDegree: false,
+      titleVerificationCode: 'SMK-1',
+    );
+    final species = await cat.items(CatalogKind.species);
+    final specialties = await cat.items(CatalogKind.specialties);
+    await vets.setSpecies({species.first.id, species[1].id});
+    await vets.setSpecies({species.first.id});
+    expect(await vets.mySpeciesIds(), {species.first.id});
+    await vets.setSpecialties({specialties.first.id});
+    await vets.addAvailability(1, 540, 780);
+    await expectLater(
+      vets.addAvailability(1, 720, 900),
+      throwsA(isA<VetFailure>()),
+      reason: 'solape del mismo día',
+    );
+
+    await expectLater(
+      vets.submitApplication(),
+      throwsA(
+        isA<VetFailure>().having(
+          (e) => e.message,
+          'message',
+          contains('Falta'),
+        ),
+      ),
+    );
+
+    await vets.uploadDocument(
+      VetDocumentKind.degreeCertificate,
+      const PickedDocument(name: 'titulo.pdf', bytes: [37, 80, 68, 70]),
+    );
+    await vets.uploadDocument(
+      VetDocumentKind.idCardFront,
+      const PickedDocument(name: 'cedula.png', bytes: [137, 80, 78, 71]),
+    );
+    expect((await vets.myDocuments()).length, 2);
+    await vets.acceptDeclaration();
+    await vets.submitApplication();
+    expect((await vets.myProfile()).inReview, isTrue);
+
+    // Revisión del admin.
+    final a = await _newUser('admin-flow');
+    await _client(_service)
+        .from('user_roles')
+        .insert({'user_id': a.auth.currentUser!.id, 'role': 'admin'});
+    final adminVets = SupabaseVetRepository(a);
+    final pending = await adminVets.pendingApplications();
+    final mine = pending.firstWhere((p) => p.userId == c.auth.currentUser!.id);
+    final detail = await adminVets.applicationDetail(mine.userId);
+    expect(detail.documents.length, 2);
+    expect(detail.speciesNames, isNotEmpty);
+    final url = await adminVets.documentUrl(
+      detail.documents.first.storagePath!,
+    );
+    expect(url, contains('token='));
+    await adminVets.review(mine.userId, approve: true, notes: 'smoke');
+
+    final after = await vets.myProfile();
+    expect(after.status, VetStatus.approved);
+    expect(
+      (await SupabaseProfileRepository(c).fetchAccount())?.vetStatus,
+      VetStatus.approved,
+    );
   });
 }

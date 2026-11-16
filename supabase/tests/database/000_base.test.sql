@@ -3,13 +3,16 @@ begin;
 select plan(9);
 
 -- authenticated no borra ni trunca tablas de public (los borrados de datos
--- personales pasan por el job de borrado, fase 11). Excepciones: lista vacía.
+-- personales pasan por el job de borrado, fase 11). Excepciones: las listas
+-- propias del vet (especies, especialidades y horario), que él mismo administra.
 select is_empty(
   $$ select c.relname || ':' || p.priv
      from pg_class c join pg_namespace n on n.oid = c.relnamespace
      cross join unnest(array['DELETE','TRUNCATE','TRIGGER','REFERENCES']) p(priv)
      where n.nspname = 'public' and c.relkind in ('r', 'p')
-       and has_table_privilege('authenticated', c.oid, p.priv) $$,
+       and has_table_privilege('authenticated', c.oid, p.priv)
+       and not (p.priv = 'DELETE'
+                and c.relname in ('vet_species', 'vet_specialties', 'vet_availability')) $$,
   'authenticated no puede borrar ni truncar tablas de public'
 );
 
@@ -43,7 +46,8 @@ select is_empty(
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'private'
        and has_function_privilege('authenticated', p.oid, 'EXECUTE')
-       and p.proname not in ('current_app_role', 'is_admin', 'touch_updated_at') $$,
+       and p.proname not in ('current_app_role', 'is_admin', 'touch_updated_at',
+                              'current_vet_status') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 

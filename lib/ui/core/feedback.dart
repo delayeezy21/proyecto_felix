@@ -1,0 +1,35 @@
+import 'package:flutter/material.dart';
+import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
+import 'package:proyecto_felix/data/repositories/vet_repository.dart';
+
+/// Mensaje legible de los errores de repositorios.
+String friendlyError(Object error) => switch (error) {
+  VetFailure(:final message) => message,
+  CatalogFailure(:final message) => message,
+  _ => 'No se pudo completar la acción. Inténtalo de nuevo.',
+};
+
+/// Ejecuta una acción, muestra un SnackBar si falla (o el mensaje de éxito) y
+/// llama a [onDone] para refrescar. Devuelve true si salió bien.
+Future<bool> runWithFeedback(
+  BuildContext context,
+  Future<void> Function() action, {
+  VoidCallback? onDone,
+  String? success,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await action();
+    onDone?.call();
+    if (success != null) {
+      messenger.showSnackBar(SnackBar(content: Text(success)));
+    }
+    return true;
+  } on Object catch (e) {
+    onDone?.call();
+    messenger.showSnackBar(
+      SnackBar(content: Text(friendlyError(e), key: const Key('snack-error'))),
+    );
+    return false;
+  }
+}
