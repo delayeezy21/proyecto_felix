@@ -1,0 +1,8 @@
+# Estado local de los hooks de memoria
+.claude/state/
+.claude/settings.local.json
+
+# Secretos
+.env
+.env.*
+secrets/
