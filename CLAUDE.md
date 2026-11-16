@@ -14,6 +14,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - `flutter analyze` · `flutter test` · `flutter test integration_test`
 - Supabase CLI fijada vía npx (no está instalada global): `npx --yes supabase@3.2.0 start` (requiere Docker) · `... test db` (pgTAP) · `... db advisors`
 - Ejecutar: `flutter run -d windows --dart-define-from-file=.env` (o `-d chrome`, `-d <android>`)
+- E2E Auth + REST (con `supabase start`): `node tool/e2e/auth_e2e.mjs "$(npx --yes supabase@3.2.0 status -o json | sed -n '/^{/,$p')"`
 - La plantilla de entorno es `env.example` (sin punto: Claude Code tiene bloqueado leer `.env.*`).
 - `supabase_flutter` fijado en 2.x (v3 aún es prerelease); la clave va en `publishableKey`.
 
@@ -25,7 +26,8 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Los estados de la visita cambian solo vía `transition_visit`; nunca con `update` directo.
 - La ficha clínica es solo inserción: las correcciones crean una entrada con `supersedes_id`.
 - El vet lee la ficha solo vía la RPC `get_pet_record` (registra cada lectura); no tiene `SELECT` directo.
-- Las tablas nuevas de `public` no se exponen solas: cada migración incluye `grant` + `enable/force row level security` + un test pgTAP.
+- Supabase local concede ALL por defecto a `anon`/`authenticated` en tablas nuevas: cada migración hace `revoke all` + `grant` mínimos (con UPDATE por columna) + `enable/force row level security` + test pgTAP. Las invariantes de `000_base.test.sql` lo vigilan.
+- El registro se completa con la RPC `complete_registration` (SECURITY INVOKER); el rol solo se autoasigna como `owner`/`vet`. El admin se crea por SQL.
 - Helpers `security definer` solo en el esquema `private`, con `set search_path = ''` y `(select auth.uid())`.
 - Los roles van en `user_roles`, nunca en `user_metadata`.
 - Montos en CLP como `integer`.

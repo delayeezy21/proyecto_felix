@@ -1,19 +1,88 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:proyecto_felix/ui/features/home/views/home_view.dart';
+import 'package:proyecto_felix/core/router/routes.dart';
+import 'package:proyecto_felix/data/providers.dart';
+import 'package:proyecto_felix/domain/models/account.dart';
+import 'package:proyecto_felix/ui/features/auth/views/login_view.dart';
+import 'package:proyecto_felix/ui/features/auth/views/sign_up_view.dart';
+import 'package:proyecto_felix/ui/features/home/views/role_home_view.dart';
+import 'package:proyecto_felix/ui/features/home/views/splash_view.dart';
+import 'package:proyecto_felix/ui/features/onboarding/views/onboarding_view.dart';
 
-abstract final class AppRoutes {
-  static const home = '/';
-}
-
-/// Rutas de la app. La protección por rol se agrega en la fase 1.
+/// Router con protección por sesión y rol (ver `AppRoutes.redirect`).
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final refresh = ValueNotifier<int>(0);
+  ref
+    ..listen(sessionProvider, (_, _) => refresh.value++)
+    ..onDispose(refresh.dispose);
+
+  SessionSnapshot currentSession() => switch (ref.read(sessionProvider)) {
+    AsyncData(:final value) => value,
+    AsyncError() => const SignedOut(),
+    _ => const SessionLoading(),
+  };
+
   final router = GoRouter(
-    initialLocation: AppRoutes.home,
+    initialLocation: AppRoutes.splash,
+    refreshListenable: refresh,
+    redirect: (context, state) =>
+        AppRoutes.redirect(currentSession(), state.matchedLocation),
     routes: [
       GoRoute(
-        path: AppRoutes.home,
-        builder: (context, state) => const HomeView(),
+        path: AppRoutes.splash,
+        builder: (context, state) => const SplashView(),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const LoginView(),
+      ),
+      GoRoute(
+        path: AppRoutes.signUp,
+        builder: (context, state) => const SignUpView(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboarding,
+        builder: (context, state) => const OnboardingView(),
+      ),
+      GoRoute(
+        path: AppRoutes.owner,
+        builder: (context, state) => const RoleHomeView(
+          title: 'Inicio',
+          message: 'Aquí podrás registrar tus mascotas y pedir visitas.',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.vet,
+        builder: (context, state) => const RoleHomeView(
+          title: 'Panel veterinario',
+          message: 'Aquí verás tus solicitudes y tu disponibilidad.',
+        ),
+        routes: [
+          GoRoute(
+            path: 'pending',
+            builder: (context, state) => const RoleHomeView(
+              title: 'Cuenta en revisión',
+              message:
+                  'Tu cuenta está pendiente de aprobación. Te avisaremos '
+                  'cuando un administrador revise tus documentos.',
+            ),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.admin,
+        builder: (context, state) => const RoleHomeView(
+          title: 'Administración',
+          message: 'Aquí aprobarás veterinarios y gestionarás catálogos.',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.foundation,
+        builder: (context, state) => const RoleHomeView(
+          title: 'Fundación',
+          message: 'Aquí verás los aportes recibidos.',
+        ),
       ),
     ],
   );

@@ -32,8 +32,10 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 3.2.0
-      - run: supabase db start
+      - run: supabase start
       - run: supabase test db
+      - name: E2E Auth + REST (grants y RLS reales)
+        run: node tool/e2e/auth_e2e.mjs "$(supabase status -o json | sed -n '/^{/,$p')"
 
   secrets:
     name: Sin secretos en el repo

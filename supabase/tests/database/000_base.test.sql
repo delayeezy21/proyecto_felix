@@ -1,14 +1,50 @@
 -- Fase 0: invariantes de seguridad que valen para TODAS las fases.
 begin;
-select plan(6);
+select plan(9);
+
+-- authenticated no borra ni trunca tablas de public (los borrados de datos
+-- personales pasan por el job de borrado, fase 11). Excepciones: lista vacía.
+select is_empty(
+  $$ select c.relname || ':' || p.priv
+     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     cross join unnest(array['DELETE','TRUNCATE','TRIGGER','REFERENCES']) p(priv)
+     where n.nspname = 'public' and c.relkind in ('r', 'p')
+       and has_table_privilege('authenticated', c.oid, p.priv) $$,
+  'authenticated no puede borrar ni truncar tablas de public'
+);
+
+-- anon no tiene privilegios de escritura sobre ninguna tabla de public, y solo
+-- lee las tablas de la lista blanca.
+select is_empty(
+  $$ select c.relname || ':' || p.priv
+     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     cross join unnest(array['INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p(priv)
+     where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm')
+       and has_table_privilege('anon', c.oid, p.priv) $$,
+  'anon no puede escribir en ninguna tabla de public'
+);
+select is_empty(
+  $$ select c.relname
+     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm')
+       and has_table_privilege('anon', c.oid, 'SELECT')
+       and c.relname not in ('legal_versions') $$,
+  'anon solo lee tablas públicas autorizadas'
+);
 
 select has_extension('postgis', 'PostGIS instalado');
 select has_extension('btree_gist', 'btree_gist instalado (restricciones de exclusión)');
 select has_schema('private', 'existe el esquema private');
 
-select ok(
-  not has_schema_privilege('authenticated', 'private', 'USAGE'),
-  'authenticated no puede usar el esquema private'
+-- `private` no se expone por la Data API; authenticated solo puede ejecutar
+-- los helpers de la lista blanca (los usan las políticas RLS) y no toca tablas.
+select is_empty(
+  $$ select p.proname
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'private'
+       and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+       and p.proname not in ('current_app_role', 'is_admin', 'touch_updated_at') $$,
+  'authenticated solo ejecuta helpers autorizados de private'
 );
 
 -- Toda tabla de public debe tener RLS habilitada Y forzada.

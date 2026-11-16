@@ -1,0 +1,30 @@
+POLÍTICA DE PRIVACIDAD — FELIX (versión 2026-11-16)
+
+BORRADOR DE DEMOSTRACIÓN (Ley 21.719). Proyecto de portafolio con datos de
+prueba.
+
+Qué datos usamos
+- Dueños: nombre para mostrar, correo, teléfono, comuna, direcciones y datos
+  de tus mascotas. No pedimos RUT.
+- Veterinarios: nombre profesional, correo, especies, especialidades,
+  disponibilidad y documentos de verificación (se borran 7 días después de la
+  revisión, 30 si se apela).
+
+Para qué
+- Prestar el servicio (contrato): coordinar visitas, ficha clínica, pagos
+  simulados y aportes a fundaciones.
+- Novedades por correo: solo si das tu consentimiento, y puedes retirarlo.
+
+Quién ve qué
+- Tu dirección exacta y tu teléfono los ve solo el veterinario asignado
+  mientras la visita está activa.
+- La ficha clínica la ves tú y el veterinario que atiende (hasta 30 días
+  después) o a quien autorices. Cada acceso queda registrado.
+
+Dónde se guardan
+- Proveedores fuera de Chile (Supabase en São Paulo; Google para inicio de
+  sesión, mapas y notificaciones).
+
+Tus derechos
+- Acceso, rectificación, supresión, oposición, portabilidad y bloqueo, desde
+  la app. Al borrar tu cuenta hay 15 días de gracia con la cuenta bloqueada.

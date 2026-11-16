@@ -1,0 +1,22 @@
+TÉRMINOS Y CONDICIONES — FELIX (versión 2026-11-16)
+
+BORRADOR DE DEMOSTRACIÓN. Felix es un proyecto de portafolio: no presta
+servicios veterinarios reales, no cobra dinero y todos los pagos son simulados.
+
+1. Objeto. Felix conecta a dueños de mascotas con veterinarios a domicilio.
+   Los veterinarios son profesionales independientes y responsables de su
+   atención.
+
+2. Cuentas. Debes entregar información veraz. Los veterinarios quedan
+   pendientes hasta que un administrador verifique sus documentos.
+
+3. Pagos y suscripciones. En esta versión son simulados: no se realizan
+   cargos reales. Parte de la comisión se destina a la fundación que elijas.
+
+4. Cancelaciones. Se aplican las reglas informadas al pedir la visita.
+
+5. Calificaciones. Deben ser respetuosas y basadas en la visita realizada.
+
+6. Datos personales. Se tratan según la Política de Privacidad.
+
+7. Contacto. Las consultas se canalizan desde la app.

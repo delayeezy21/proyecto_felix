@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:proyecto_felix/core/config/env_provider.dart';
 
-/// Pantalla inicial provisoria de la fase 0.
-class HomeView extends ConsumerWidget {
+/// Se muestra cuando la app se ejecuta sin `--dart-define-from-file=.env`.
+class ConfigMissingView extends StatelessWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final env = ref.watch(envProvider);
+  Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: Center(
@@ -21,11 +18,14 @@ class HomeView extends ConsumerWidget {
               const SizedBox(height: 8),
               Text('Veterinarios a domicilio', style: textTheme.titleMedium),
               const SizedBox(height: 24),
+              const Text(
+                'Backend sin configurar (revisa .env)',
+                key: Key('backend-status'),
+              ),
+              const SizedBox(height: 8),
               Text(
-                env.isSupabaseConfigured
-                    ? 'Backend configurado'
-                    : 'Backend sin configurar (revisa .env)',
-                key: const Key('backend-status'),
+                'Ejecuta: flutter run --dart-define-from-file=.env',
+                style: textTheme.bodySmall,
               ),
             ],
           ),
