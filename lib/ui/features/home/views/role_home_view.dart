@@ -14,10 +14,17 @@ class RoleHomeView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider).value;
-    final name = switch (session) {
-      SignedIn(:final account?) => account.displayName,
-      _ => '',
+    final account = switch (session) {
+      SignedIn(:final account?) => account,
+      _ => null,
     };
+    final name = account?.displayName ?? '';
+    final icon = switch (account?.role) {
+      AppRole.foundation => Icons.volunteer_activism_outlined,
+      _ => Icons.pets,
+    };
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -31,20 +38,62 @@ class RoleHomeView extends ConsumerWidget {
           ),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (name.isNotEmpty)
-                Text(
-                  'Hola, $name',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              const SizedBox(height: 12),
-              Text(message, textAlign: TextAlign.center),
-            ],
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ExcludeSemantics(
+                    child: Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: scheme.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 44,
+                        color: scheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (name.isNotEmpty) ...[
+                    Text(
+                      'Hola, $name',
+                      style: theme.textTheme.headlineSmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.construction_outlined,
+                            color: scheme.primary,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              message,
+                              style: theme.textTheme.bodyLarge,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

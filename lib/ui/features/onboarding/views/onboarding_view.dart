@@ -5,7 +5,9 @@ import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/validators.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
+import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
+import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 import 'package:proyecto_felix/ui/features/onboarding/view_models/onboarding_controller.dart';
 
@@ -81,23 +83,29 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
         switch (legal) {
           AsyncData(:final value) => _buildForm(context, value, submit, busy),
           AsyncError() => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const FormError('No se pudieron cargar los términos vigentes.'),
               const SizedBox(height: 12),
-              OutlinedButton(
+              OutlinedButton.icon(
                 onPressed: () => ref.invalidate(legalVersionsProvider),
-                child: const Text('Reintentar'),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reintentar'),
               ),
             ],
           ),
-          _ => const Center(child: CircularProgressIndicator()),
+          _ => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: LoadingView(),
+          ),
         },
         const SizedBox(height: 12),
-        TextButton(
+        TextButton.icon(
+          icon: const Icon(Icons.logout),
+          label: const Text('Cerrar sesión'),
           onPressed: busy
               ? null
               : () => ref.read(authControllerProvider.notifier).signOut(),
-          child: const Text('Cerrar sesión'),
         ),
       ],
     );
@@ -116,9 +124,10 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('¿Cómo usarás Felix?', style: textTheme.titleMedium),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           SegmentedButton<AppRole>(
             key: const Key('onboarding-role'),
+            showSelectedIcon: false,
             segments: const [
               ButtonSegment(
                 value: AppRole.owner,
@@ -136,7 +145,9 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
                 ? null
                 : (s) => setState(() => _role = s.first),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          Text('Tus datos', style: textTheme.titleMedium),
+          const SizedBox(height: 12),
           TextFormField(
             key: const Key('onboarding-name'),
             controller: _name,
@@ -144,24 +155,32 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
               labelText: _role == AppRole.vet
                   ? 'Nombre profesional'
                   : 'Nombre para mostrar',
+              prefixIcon: Icon(
+                _role == AppRole.vet
+                    ? Icons.badge_outlined
+                    : Icons.person_outline,
+              ),
             ),
             textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
             validator: Validators.displayName,
           ),
           if (_role == AppRole.owner) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             TextFormField(
               key: const Key('onboarding-phone'),
               controller: _phone,
               decoration: const InputDecoration(
                 labelText: 'Teléfono',
+                prefixIcon: Icon(Icons.phone_outlined),
                 helperText:
                     'Solo lo verá el veterinario asignado durante la visita',
               ),
               keyboardType: TextInputType.phone,
+              autofillHints: const [AutofillHints.telephoneNumber],
               validator: (v) => Validators.phone(v, required: true),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             _RegionCommunePicker(
               regionId: _regionId,
               communeId: _communeId,
@@ -174,28 +193,48 @@ class _OnboardingViewState extends ConsumerState<OnboardingView> {
             ),
           ],
           if (_role == AppRole.vet) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Tu cuenta quedará pendiente hasta que un administrador revise '
-              'tu título y carnet (los subirás en el siguiente paso).',
-              style: textTheme.bodySmall,
+            const SizedBox(height: 16),
+            const InfoBanner(
+              icon: Icons.verified_user_outlined,
+              message:
+                  'Tu cuenta quedará pendiente hasta que un administrador '
+                  'revise tu título y carnet (los subirás en el siguiente '
+                  'paso).',
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+          Text('Privacidad y términos', style: textTheme.titleMedium),
+          const SizedBox(height: 8),
           // Aviso de privacidad: deber de información (no es consentimiento).
-          Text(
-            'Usamos tus datos solo para prestar el servicio. Puedes '
-            'descargarlos o borrar tu cuenta cuando quieras.',
-            style: textTheme.bodySmall,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ExcludeSemantics(
+                child: Icon(
+                  Icons.shield_outlined,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Usamos tus datos solo para prestar el servicio. Puedes '
+                  'descargarlos o borrar tu cuenta cuando quieras.',
+                  style: textTheme.bodyMedium,
+                ),
+              ),
+            ],
           ),
           Align(
             alignment: Alignment.centerLeft,
-            child: TextButton(
+            child: TextButton.icon(
               onPressed: () => _showDocument(
                 'Política de privacidad (v${legal.privacy})',
                 'assets/legal/privacidad.txt',
               ),
-              child: const Text('Leer la política de privacidad'),
+              icon: const Icon(Icons.article_outlined, size: 18),
+              label: const Text('Leer la política de privacidad'),
             ),
           ),
           CheckboxListTile(
@@ -283,7 +322,10 @@ class _RegionCommunePicker extends ConsumerWidget {
           key: const Key('onboarding-region'),
           initialValue: regionId,
           isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Región'),
+          decoration: const InputDecoration(
+            labelText: 'Región',
+            prefixIcon: Icon(Icons.map_outlined),
+          ),
           items: [
             for (final r in regions.value ?? const <Region>[])
               DropdownMenuItem(value: r.id, child: Text(r.name)),
@@ -291,13 +333,16 @@ class _RegionCommunePicker extends ConsumerWidget {
           onChanged: enabled ? onRegion : null,
           validator: (v) => v == null ? 'Elige tu región' : null,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         DropdownButtonFormField<int>(
           // La key cambia con la región para reiniciar la selección.
           key: Key('onboarding-commune-$regionId'),
           initialValue: communeId,
           isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Comuna'),
+          decoration: const InputDecoration(
+            labelText: 'Comuna',
+            prefixIcon: Icon(Icons.location_city_outlined),
+          ),
           items: [
             for (final c in communes.value ?? const <Commune>[])
               DropdownMenuItem(value: c.id, child: Text(c.name)),
