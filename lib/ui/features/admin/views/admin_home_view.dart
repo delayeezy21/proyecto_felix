@@ -5,6 +5,8 @@ import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/validators.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
+import 'package:proyecto_felix/ui/core/empty_state.dart';
+import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/admin/view_models/admin_catalog_providers.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_vet_review_view.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
@@ -32,12 +34,21 @@ class AdminHomeView extends ConsumerWidget {
           bottom: const TabBar(
             isScrollable: true,
             tabs: [
-              Tab(text: 'Veterinarios'),
-              Tab(text: 'Especies'),
-              Tab(text: 'Especialidades'),
-              Tab(text: 'Tarifas'),
-              Tab(text: 'Parámetros'),
-              Tab(text: 'Clínicas 24 h'),
+              Tab(
+                icon: Icon(Icons.verified_user_outlined),
+                text: 'Veterinarios',
+              ),
+              Tab(icon: Icon(Icons.pets), text: 'Especies'),
+              Tab(
+                icon: Icon(Icons.medical_services_outlined),
+                text: 'Especialidades',
+              ),
+              Tab(icon: Icon(Icons.sell_outlined), text: 'Tarifas'),
+              Tab(icon: Icon(Icons.tune), text: 'Parámetros'),
+              Tab(
+                icon: Icon(Icons.local_hospital_outlined),
+                text: 'Clínicas 24 h',
+              ),
             ],
           ),
         ),
@@ -131,17 +142,51 @@ Widget _asyncList<T>(
   VoidCallback retry,
 ) => switch (value) {
   AsyncData(:final value) => builder(value),
-  AsyncError(:final error) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(catalogErrorMessage(error)),
-        TextButton(onPressed: retry, child: const Text('Reintentar')),
-      ],
-    ),
+  AsyncError(:final error) => _ErrorState(
+    message: catalogErrorMessage(error),
+    retry: retry,
   ),
-  _ => const Center(child: CircularProgressIndicator()),
+  _ => const LoadingView(),
 };
+
+/// Error de carga con botón para reintentar.
+class _ErrorState extends StatelessWidget {
+  const new({required this.message, this.retry});
+
+  final String message;
+  final VoidCallback? retry;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    child: EmptyState(
+      icon: Icons.cloud_off,
+      isError: true,
+      title: message,
+      action: retry == null
+          ? null
+          : OutlinedButton.icon(
+              onPressed: retry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+    ),
+  );
+}
+
+/// Lista separada por divisores, con ancho máximo y espacio para el botón
+/// flotante al final.
+Widget _list({
+  required int itemCount,
+  required IndexedWidgetBuilder itemBuilder,
+  bool hasFab = false,
+}) => MaxWidth(
+  child: ListView.separated(
+    padding: EdgeInsets.fromLTRB(8, 8, 8, hasFab ? 96 : 16),
+    itemCount: itemCount,
+    separatorBuilder: (_, _) => const Divider(indent: 16, endIndent: 16),
+    itemBuilder: itemBuilder,
+  ),
+);
 
 // ---------------------------------------------------------------------------
 // Especies y especialidades
@@ -180,45 +225,64 @@ class _CatalogTab extends ConsumerWidget {
       ),
       body: _asyncList(
         ref.watch(adminItemsProvider(kind)),
-        (items) => ListView.separated(
-          padding: const EdgeInsets.only(bottom: 88),
-          itemCount: items.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, i) {
-            final item = items[i];
-            return ListTile(
-              key: Key('item-${item.slug}'),
-              title: Text(item.name),
-              subtitle: item.active ? null : const Text('Inactiva'),
-              onTap: () async {
-                final name = await _askText(
-                  context,
-                  title: 'Renombrar',
-                  label: 'Nombre',
-                  initial: item.name,
-                  validator: Validators.displayName,
-                );
-                if (name == null || name == item.name || !context.mounted) {
-                  return;
-                }
-                await _runAction(
-                  context,
-                  () => repo.renameItem(kind, item.id, name),
-                  onDone: refresh,
-                );
-              },
-              trailing: Switch(
-                key: Key('active-${item.slug}'),
-                value: item.active,
-                onChanged: (v) => _runAction(
-                  context,
-                  () => repo.setItemActive(kind, item.id, active: v),
-                  onDone: refresh,
+        (items) => items.isEmpty
+            ? SingleChildScrollView(
+                child: EmptyState(
+                  icon: kind == CatalogKind.species
+                      ? Icons.pets
+                      : Icons.medical_services_outlined,
+                  title: 'Aún no hay ${kind.title.toLowerCase()}.',
+                  message: 'Usa el botón "Agregar ${kind.singular}".',
                 ),
+              )
+            : _list(
+                hasFab: true,
+                itemCount: items.length,
+                itemBuilder: (context, i) {
+                  final item = items[i];
+                  return ListTile(
+                    key: Key('item-${item.slug}'),
+                    leading: Icon(
+                      kind == CatalogKind.species
+                          ? Icons.pets
+                          : Icons.medical_services_outlined,
+                      color: item.active
+                          ? null
+                          : Theme.of(context).disabledColor,
+                    ),
+                    title: Text(item.name),
+                    subtitle: item.active ? null : const Text('Inactiva'),
+                    onTap: () async {
+                      final name = await _askText(
+                        context,
+                        title: 'Renombrar',
+                        label: 'Nombre',
+                        initial: item.name,
+                        validator: Validators.displayName,
+                      );
+                      if (name == null ||
+                          name == item.name ||
+                          !context.mounted) {
+                        return;
+                      }
+                      await _runAction(
+                        context,
+                        () => repo.renameItem(kind, item.id, name),
+                        onDone: refresh,
+                      );
+                    },
+                    trailing: Switch(
+                      key: Key('active-${item.slug}'),
+                      value: item.active,
+                      onChanged: (v) => _runAction(
+                        context,
+                        () => repo.setItemActive(kind, item.id, active: v),
+                        onDone: refresh,
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
         refresh,
       ),
     );
@@ -246,42 +310,63 @@ class _TariffsTab extends ConsumerWidget {
 
     return _asyncList(
       ref.watch(adminTariffsProvider),
-      (tariffs) => ListView.separated(
-        itemCount: tariffs.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
-        itemBuilder: (context, i) {
-          final t = tariffs[i];
-          return ListTile(
-            key: Key('tariff-${t.id}'),
-            title: Text(t.specialtyName),
-            subtitle: Text(t.speciesName ?? 'Todas las especies'),
-            trailing: Text(
-              formatClp(t.basePrice),
-              style: Theme.of(context).textTheme.titleMedium,
+      (tariffs) => tariffs.isEmpty
+          ? const SingleChildScrollView(
+              child: EmptyState(
+                icon: Icons.sell_outlined,
+                title: 'Aún no hay tarifas.',
+              ),
+            )
+          : _list(
+              itemCount: tariffs.length,
+              itemBuilder: (context, i) {
+                final t = tariffs[i];
+                final theme = Theme.of(context);
+                return ListTile(
+                  key: Key('tariff-${t.id}'),
+                  leading: const Icon(Icons.sell_outlined),
+                  title: Text(t.specialtyName),
+                  subtitle: Text(t.speciesName ?? 'Todas las especies'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        formatClp(t.basePrice),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.edit_outlined,
+                        size: 18,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                  onTap: () async {
+                    final value = await _askText(
+                      context,
+                      title: 'Tarifa base · ${t.specialtyName}',
+                      label: 'Monto en pesos',
+                      initial: t.basePrice.toString(),
+                      keyboard: TextInputType.number,
+                      validator: _validatePrice,
+                    );
+                    if (value == null || !context.mounted) return;
+                    await _runAction(
+                      context,
+                      () => repo.updateTariffPrice(
+                        t.id,
+                        int.parse(value.replaceAll('.', '')),
+                      ),
+                      onDone: refresh,
+                      success: 'Tarifa actualizada',
+                    );
+                  },
+                );
+              },
             ),
-            onTap: () async {
-              final value = await _askText(
-                context,
-                title: 'Tarifa base · ${t.specialtyName}',
-                label: 'Monto en pesos',
-                initial: t.basePrice.toString(),
-                keyboard: TextInputType.number,
-                validator: _validatePrice,
-              );
-              if (value == null || !context.mounted) return;
-              await _runAction(
-                context,
-                () => repo.updateTariffPrice(
-                  t.id,
-                  int.parse(value.replaceAll('.', '')),
-                ),
-                onDone: refresh,
-                success: 'Tarifa actualizada',
-              );
-            },
-          );
-        },
-      ),
       refresh,
     );
   }
@@ -413,12 +498,14 @@ class _PricingTabState extends ConsumerState<_PricingTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        'Valores vigentes. Al guardar se crea una nueva '
-                        'versión; la anterior queda en el historial.',
-                        style: Theme.of(context).textTheme.bodySmall,
+                      const InfoBanner(
+                        icon: Icons.history,
+                        message:
+                            'Valores vigentes. Al guardar se crea una nueva '
+                            'versión; la anterior queda en el historial.',
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
+                      _heading(context, 'Comisión'),
                       _field(
                         'commission',
                         'Comisión de la app',
@@ -431,6 +518,8 @@ class _PricingTabState extends ConsumerState<_PricingTab> {
                         _pct,
                         suffix: '%',
                       ),
+                      const SizedBox(height: 8),
+                      _heading(context, 'Recargos y cargos'),
                       _field(
                         'urgent',
                         'Recargo por urgencia',
@@ -445,10 +534,12 @@ class _PricingTabState extends ConsumerState<_PricingTab> {
                         _int,
                         suffix: r'$',
                       ),
-                      FilledButton(
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
                         key: const Key('pricing-save'),
                         onPressed: _save,
-                        child: const Text('Guardar nueva versión'),
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Guardar nueva versión'),
                       ),
                     ],
                   ),
@@ -458,12 +549,18 @@ class _PricingTabState extends ConsumerState<_PricingTab> {
           );
         },
       ),
-      AsyncError(:final error) => Center(
-        child: Text(catalogErrorMessage(error)),
+      AsyncError(:final error) => _ErrorState(
+        message: catalogErrorMessage(error),
+        retry: () => ref.invalidate(adminPricingProvider),
       ),
-      _ => const Center(child: CircularProgressIndicator()),
+      _ => const LoadingView(),
     };
   }
+
+  Widget _heading(BuildContext context, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -494,15 +591,23 @@ class _ClinicsTab extends ConsumerWidget {
       body: _asyncList(
         ref.watch(adminClinicsProvider),
         (clinics) => clinics.isEmpty
-            ? const Center(child: Text('Aún no hay clínicas registradas.'))
-            : ListView.separated(
-                padding: const EdgeInsets.only(bottom: 88),
+            ? const SingleChildScrollView(
+                child: EmptyState(
+                  icon: Icons.local_hospital_outlined,
+                  title: 'Aún no hay clínicas registradas.',
+                  message:
+                      'Se ofrecen a los dueños cuando no hay veterinarios '
+                      'disponibles para una urgencia.',
+                ),
+              )
+            : _list(
+                hasFab: true,
                 itemCount: clinics.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (context, i) {
                   final c = clinics[i];
                   return ListTile(
                     key: Key('clinic-${c.id}'),
+                    leading: const Icon(Icons.local_hospital_outlined),
                     title: Text(c.name),
                     subtitle: Text(
                       '${c.communeName} · ${c.address}\n${c.phone}',
@@ -590,6 +695,7 @@ class _ClinicDialogState extends ConsumerState<_ClinicDialog> {
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              spacing: 12,
               children: [
                 TextFormField(
                   key: const Key('clinic-name'),

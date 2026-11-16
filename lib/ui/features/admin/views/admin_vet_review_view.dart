@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
+import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 
 final pendingVetApplicationsProvider =
@@ -37,35 +38,55 @@ class AdminVetApplicationsTab extends ConsumerWidget {
       child: switch (apps) {
         AsyncData(:final value) when value.isEmpty => ListView(
           children: const [
-            SizedBox(height: 80),
-            Center(child: Text('No hay solicitudes pendientes.')),
+            SizedBox(height: 48),
+            EmptyState(
+              icon: Icons.task_alt,
+              title: 'No hay solicitudes pendientes.',
+              message:
+                  'Cuando un veterinario envíe su solicitud aparecerá aquí. '
+                  'Desliza hacia abajo para actualizar.',
+            ),
           ],
         ),
-        AsyncData(:final value) => ListView.separated(
-          itemCount: value.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, i) {
-            final a = value[i];
-            return ListTile(
-              key: Key('application-${a.userId}'),
-              leading: const Icon(Icons.badge_outlined),
-              title: Text(a.displayName),
-              subtitle: Text(
-                '${a.university ?? 'Sin universidad'} · enviada '
-                '${_date(a.submittedAt)}',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.go('/admin/vets/${a.userId}'),
-            );
-          },
+        AsyncData(:final value) => MaxWidth(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(8),
+            itemCount: value.length,
+            separatorBuilder: (_, _) =>
+                const Divider(indent: 16, endIndent: 16),
+            itemBuilder: (context, i) {
+              final a = value[i];
+              final scheme = Theme.of(context).colorScheme;
+              return ListTile(
+                key: Key('application-${a.userId}'),
+                leading: CircleAvatar(
+                  backgroundColor: scheme.secondaryContainer,
+                  foregroundColor: scheme.onSecondaryContainer,
+                  child: const Icon(Icons.badge_outlined),
+                ),
+                title: Text(a.displayName),
+                subtitle: Text(
+                  '${a.university ?? 'Sin universidad'} · enviada '
+                  '${_date(a.submittedAt)}',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.go('/admin/vets/${a.userId}'),
+              );
+            },
+          ),
         ),
         AsyncError(:final error) => ListView(
           children: [
-            const SizedBox(height: 80),
-            Center(child: Text(friendlyError(error))),
+            const SizedBox(height: 48),
+            EmptyState(
+              icon: Icons.cloud_off,
+              isError: true,
+              title: friendlyError(error),
+              message: 'Desliza hacia abajo para reintentar.',
+            ),
           ],
         ),
-        _ => const Center(child: CircularProgressIndicator()),
+        _ => const LoadingView(),
       },
     );
   }
@@ -202,8 +223,20 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
       ),
       body: switch (detail) {
         AsyncData(:final value) => _content(context, value),
-        AsyncError(:final error) => Center(child: Text(friendlyError(error))),
-        _ => const Center(child: CircularProgressIndicator()),
+        AsyncError(:final error) => SingleChildScrollView(
+          child: EmptyState(
+            icon: Icons.cloud_off,
+            isError: true,
+            title: friendlyError(error),
+            action: OutlinedButton.icon(
+              onPressed: () =>
+                  ref.invalidate(vetApplicationDetailProvider(widget.vetId)),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ),
+        ),
+        _ => const LoadingView(),
       },
     );
   }
@@ -211,6 +244,7 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
   Widget _content(BuildContext context, VetApplicationDetail d) {
     final p = d.profile;
     final t = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Center(
@@ -219,86 +253,130 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(p.displayName, style: t.headlineSmall),
-              const SizedBox(height: 8),
-              Text('Universidad: ${p.university ?? '—'}'),
-              Text('Año de titulación: ${p.graduationYear ?? '—'}'),
-              Text('Código de verificación: ${p.titleVerificationCode ?? '—'}'),
-              if (p.foreignDegree)
-                const Text('Declara título extranjero revalidado en Chile'),
-              Text('Especies: ${d.speciesNames.join(', ')}'),
-              Text('Especialidades: ${d.specialtyNames.join(', ')}'),
-              if (p.declarationAcceptedAt != null)
-                Text(
-                  'Declaración jurada aceptada el '
-                  '${_date(p.declarationAcceptedAt!)}',
+              _ReviewSection(
+                icon: Icons.person_outline,
+                title: p.displayName,
+                titleStyle: t.headlineSmall,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 6,
+                  children: [
+                    Text('Universidad: ${p.university ?? '—'}'),
+                    Text('Año de titulación: ${p.graduationYear ?? '—'}'),
+                    Text(
+                      'Código de verificación: '
+                      '${p.titleVerificationCode ?? '—'}',
+                    ),
+                    if (p.foreignDegree)
+                      const Text(
+                        'Declara título extranjero revalidado en Chile',
+                      ),
+                    Text('Especies: ${d.speciesNames.join(', ')}'),
+                    Text('Especialidades: ${d.specialtyNames.join(', ')}'),
+                    if (p.declarationAcceptedAt != null)
+                      Text(
+                        'Declaración jurada aceptada el '
+                        '${_date(p.declarationAcceptedAt!)}',
+                        style: t.bodySmall,
+                      ),
+                  ],
                 ),
-              const Divider(height: 32),
-              Text('Documentos', style: t.titleMedium),
-              for (final doc in d.documents)
-                ListTile(
-                  key: Key('review-doc-${doc.kind.dbValue}'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    doc.mime == 'application/pdf'
-                        ? Icons.picture_as_pdf
-                        : Icons.image_outlined,
-                  ),
-                  title: Text(doc.kind.label),
-                  subtitle: Text('Subido ${_date(doc.uploadedAt)}'),
-                  trailing: doc.isPurged
-                      ? const Text('Eliminado')
-                      : TextButton(
-                          key: Key('open-${doc.kind.dbValue}'),
-                          onPressed: () => _openDocument(doc),
-                          child: const Text('Ver (60 s)'),
+              ),
+              const SizedBox(height: 12),
+              _ReviewSection(
+                icon: Icons.folder_open_outlined,
+                title: 'Documentos',
+                child: Column(
+                  children: [
+                    if (d.documents.isEmpty)
+                      Text('Sin documentos.', style: t.bodySmall),
+                    for (final doc in d.documents)
+                      ListTile(
+                        key: Key('review-doc-${doc.kind.dbValue}'),
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          doc.mime == 'application/pdf'
+                              ? Icons.picture_as_pdf
+                              : Icons.image_outlined,
                         ),
-                ),
-              const Divider(height: 32),
-              Text('Lista de chequeo', style: t.titleMedium),
-              Text(
-                'En Chile no hay un registro público oficial de veterinarios: '
-                'verifica el certificado con la universidad emisora.',
-                style: t.bodySmall,
-              ),
-              for (final c in _checks)
-                CheckboxListTile(
-                  key: Key('check-${c.$1}'),
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  value: _checked.contains(c.$1),
-                  onChanged: (v) => setState(
-                    () =>
-                        v ?? false ? _checked.add(c.$1) : _checked.remove(c.$1),
-                  ),
-                  title: Text(c.$3 ? c.$2 : '${c.$2} (opcional)'),
-                ),
-              TextField(
-                key: const Key('review-notes'),
-                controller: _notes,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Notas internas (opcional)',
+                        title: Text(doc.kind.label),
+                        subtitle: Text('Subido ${_date(doc.uploadedAt)}'),
+                        trailing: doc.isPurged
+                            ? const Text('Eliminado')
+                            : TextButton.icon(
+                                key: Key('open-${doc.kind.dbValue}'),
+                                onPressed: () => _openDocument(doc),
+                                icon: const Icon(Icons.open_in_new, size: 18),
+                                label: const Text('Ver (60 s)'),
+                              ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              _ReviewSection(
+                icon: Icons.checklist,
+                title: 'Lista de chequeo',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'En Chile no hay un registro público oficial de '
+                      'veterinarios: verifica el certificado con la '
+                      'universidad emisora.',
+                      style: t.bodySmall,
+                    ),
+                    const SizedBox(height: 4),
+                    for (final c in _checks)
+                      CheckboxListTile(
+                        key: Key('check-${c.$1}'),
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        value: _checked.contains(c.$1),
+                        onChanged: (v) => setState(
+                          () => v ?? false
+                              ? _checked.add(c.$1)
+                              : _checked.remove(c.$1),
+                        ),
+                        title: Text(c.$3 ? c.$2 : '${c.$2} (opcional)'),
+                      ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      key: const Key('review-notes'),
+                      controller: _notes,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Notas internas (opcional)',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: OutlinedButton.icon(
                       key: const Key('review-reject'),
                       onPressed: _busy ? null : () => _decide(approve: false),
-                      child: const Text('Rechazar'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: scheme.error,
+                        side: BorderSide(color: scheme.error),
+                      ),
+                      icon: const Icon(Icons.close),
+                      label: const Text('Rechazar'),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton(
+                    child: FilledButton.icon(
                       key: const Key('review-approve'),
                       onPressed: _busy || !_requiredChecked
                           ? null
                           : () => _decide(approve: true),
-                      child: const Text('Aprobar'),
+                      icon: const Icon(Icons.check),
+                      label: const Text('Aprobar'),
                     ),
                   ),
                 ],
@@ -309,10 +387,58 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
                   child: Text(
                     'Para aprobar, marca los 3 chequeos obligatorios.',
                     style: t.bodySmall,
+                    textAlign: TextAlign.center,
                   ),
                 ),
+              const SizedBox(height: 24),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tarjeta con ícono y título para cada bloque de la revisión.
+class _ReviewSection extends StatelessWidget {
+  const new({
+    required this.icon,
+    required this.title,
+    required this.child,
+    this.titleStyle,
+  });
+
+  final IconData icon;
+  final String title;
+  final TextStyle? titleStyle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                ExcludeSemantics(
+                  child: Icon(icon, color: theme.colorScheme.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: titleStyle ?? theme.textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
         ),
       ),
     );
