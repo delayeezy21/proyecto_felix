@@ -66,9 +66,17 @@ try {
   await call(`/rest/v1/vet_profiles?user_id=eq.${vet.id}`, { method: 'PATCH', key: SRV, token: SRV, body: { status: 'approved' } });
   await call('/rest/v1/vet_species', { method: 'POST', key: SRV, token: SRV, body: { vet_id: vet.id, species_id: perro } });
   await call('/rest/v1/vet_specialties', { method: 'POST', key: SRV, token: SRV, body: { vet_id: vet.id, specialty_id: general } });
-  const base = await call('/rest/v1/vet_bases', { method: 'POST', token: vet.token,
+  const badBase = await call('/rest/v1/vet_bases', { method: 'POST', token: vet.token,
     body: { vet_id: vet.id, commune_id: nunoa, lat: -33.3849, lng: -70.5974 } });
+  check(badBase.status === 400, `la base del vet debe coincidir con su comuna (HTTP ${badBase.status})`);
+  const baseCommune = (await rpc('communes_at_point', { p_lat: -33.3849, p_lng: -70.5974 }, vet.token)).json[0].commune_id;
+  const base = await call('/rest/v1/vet_bases', { method: 'POST', token: vet.token,
+    body: { vet_id: vet.id, commune_id: baseCommune, lat: -33.3849, lng: -70.5974 } });
   check(base.status === 201, `el vet define su punto de partida (HTTP ${base.status})`);
+  const fuzzPatch = await call(`/rest/v1/vet_bases?vet_id=eq.${vet.id}`, { method: 'PATCH', token: vet.token, body: { fuzz_dlat: 0 } });
+  check(fuzzPatch.status >= 400, `el vet no anula su desplazamiento aleatorio (HTTP ${fuzzPatch.status})`);
+  // Para montos deterministas, el E2E (service role) anula el desplazamiento.
+  await call(`/rest/v1/vet_bases?vet_id=eq.${vet.id}`, { method: 'PATCH', key: SRV, token: SRV, body: { fuzz_dlat: 0, fuzz_dlng: 0 } });
 
   // Parte de la configuración por defecto (el E2E se puede repetir: cada
   // corrida publica versiones nuevas y la última es la vigente).
@@ -108,7 +116,7 @@ try {
     && qj.vet_payout === 24216 && qj.extra_donation === 1000 && qj.total === 29490,
     `cotización correcta: consulta general 26.990 + 3 km (PostGIS) → total ${qj.total}`);
   check(qj.foundation_id === fX, 'sin elección, la cotización va a la fundación por defecto');
-  check(qj.distance_km === 8, `el cliente ve la distancia redondeada a 0,5 km (${qj.distance_km})`);
+  check(qj.distance_km === 8, `el cliente ve la distancia redondeada al km (${qj.distance_km})`);
 
   const urg = (await rpc('quote_visit', { p_pet_id: pet, p_address_id: addr, p_specialty_id: general, p_mode: 'urgent' }, ownerA.token)).json;
   check(urg.urgent_surcharge === 8097 && urg.distance_km === null && urg.total === 35087,

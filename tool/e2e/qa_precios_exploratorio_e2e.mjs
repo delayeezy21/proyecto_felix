@@ -158,7 +158,10 @@ try {
   const urg = await q(a, { p_mode: 'urgent', p_vet_id: null, p_extra_donation: 333 });
   check(urg.status === 200 && sums(urg.json) && urg.json.urgent_surcharge === clp(26990 * 0.3),
     `urgente sin vet: ${urg.json.service_price} = base + ${urg.json.urgent_surcharge}; comisión ${urg.json.platform_fee}, fundación ${urg.json.foundation_share}`);
-  check(sums(ok.json) && ok.json.billable_km === Math.max(0, Math.ceil(hav([-33.4569, -70.5974], SECRET) / 1000 - 5)),
+  // Desde la corrección de QA-F5-01 la distancia se mide desde un origen
+  // aproximado (base ± 1–2 km): los km facturables pueden diferir hasta en 2.
+  check(sums(ok.json) && ok.json.distance_surcharge === ok.json.billable_km * 500
+    && Math.abs(ok.json.billable_km - Math.max(0, Math.ceil(hav([-33.4569, -70.5974], SECRET) / 1000 - 5))) <= 2,
     `agendada con vet: km facturables ${ok.json.billable_km}, cuadra al peso`);
   const launch = (await q(a, { p_vet_id: null })).json;
   check(launch.service_price === 26990 && launch.platform_fee === 4049 && launch.foundation_share === 810 && launch.vet_payout === 22941,
@@ -169,18 +172,19 @@ try {
     const r = await rest('vet_bases?select=lat,lng', { token: u.token });
     check(r.status === 200 && r.json.length === 0, `${who} no lee vet_bases`);
   }
-  check(!('distance_m' in ok.json) && ok.json.distance_km === Math.round(hav([-33.4569, -70.5974], SECRET) / 500) / 2,
+  check(!('distance_m' in ok.json) && Number.isInteger(ok.json.distance_km)
+    && Math.abs(ok.json.distance_km * 1000 - hav([-33.4569, -70.5974], SECRET)) <= 2500,
     `la respuesta de quote_visit solo trae distance_km redondeada (${ok.json.distance_km})`);
   const raw = await rest(`quotes?select=distance_m&id=eq.${ok.json.quote_id}`, { token: a.token });
   known(!(raw.json[0]?.distance_m > 0), 'QA-F5-01', `el dueño NO lee la distancia exacta en metros desde /quotes (obtiene ${raw.json[0]?.distance_m} m)`);
-  // Trilateración con 3 direcciones propias.
+  // Trilateración con 3 direcciones propias, usando lo único que el dueño
+  // recibe: distance_km (al km, desde el origen aproximado del vet).
   const pts = [[-33.4569, -70.5974], [-33.3800, -70.5000], [-33.4300, -70.5000]];
   const ds = [];
   for (const p of pts) {
     const id = p === pts[0] ? addrA : await mkAddr(a, p[0], p[1]);
     const qq = await q(a, { p_address_id: id });
-    const r = await rest(`quotes?select=distance_m&id=eq.${qq.json.quote_id}`, { token: a.token });
-    ds.push(r.json[0]?.distance_m);
+    ds.push(qq.json.distance_km * 1000);
   }
   let best = null;
   if (ds.every((d) => d > 0)) {
@@ -194,7 +198,9 @@ try {
     }
   }
   const leak = best ? hav(best.cand, SECRET) : Infinity;
-  known(leak > 2000, 'QA-F5-01', `con 3 cotizaciones el dueño NO ubica la base del vet (error de trilateración ${Math.round(leak)} m)`);
+  // Lo trilaterable es el origen aproximado (1–2 km de la base real): el
+  // error mínimo garantizado es 1 km menos el error de redondeo del ajuste.
+  known(leak > 500, 'QA-F5-01', `con 3 cotizaciones el dueño NO ubica la base del vet (error de trilateración ${Math.round(leak)} m)`);
 
   // Base del vet sin validación geográfica (fuera de Chile / comuna incoherente).
   const mendoza = await rest('vet_bases', { method: 'POST', token: vetFar.token, body: { vet_id: vetFar.id, commune_id: nunoa, lat: -32.889, lng: -68.845 } });

@@ -1,7 +1,7 @@
 -- Fase 5: precios (tabla de casos), cotización congelada, pagos simulados,
 -- aportes y RLS de fundaciones.
 begin;
-select plan(97);
+select plan(105);
 
 -- Fixtures ------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -34,7 +34,29 @@ insert into public.vet_specialties (vet_id, specialty_id)
 -- Origen del vet ≈ 7,99 km al norte de la dirección de A.
 insert into public.vet_bases (vet_id, commune_id, lat, lng) values
   ('00000000-0000-0000-0000-0000000008b1',
-   (select id from public.communes where name = 'Providencia'), -33.3849, -70.5974);
+   (select commune_id from public.communes_at_point(-33.3849, -70.5974) limit 1),
+   -33.3849, -70.5974);
+-- QA-F5-01: guardamos el desplazamiento aleatorio para probarlo y lo anulamos
+-- para que los montos de este test sean deterministas.
+create temp table t_fuzz as
+  select extensions.st_distance(location, quote_origin) as m from public.vet_bases
+  where vet_id = '00000000-0000-0000-0000-0000000008b1';
+update public.vet_bases set fuzz_dlat = 0, fuzz_dlng = 0
+  where vet_id = '00000000-0000-0000-0000-0000000008b1';
+-- Segundo vet compatible, con base válida en Punta Arenas (≈ 2.200 km).
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-0000000008b2', 'f5-vet-lejos@test.local');
+insert into public.user_roles (user_id, role) values
+  ('00000000-0000-0000-0000-0000000008b2', 'vet');
+insert into public.vet_profiles (user_id, display_name, status) values
+  ('00000000-0000-0000-0000-0000000008b2', 'Dr. Lejano', 'approved');
+insert into public.vet_species (vet_id, species_id)
+  select '00000000-0000-0000-0000-0000000008b2', id from public.species where slug = 'perro';
+insert into public.vet_specialties (vet_id, specialty_id)
+  select '00000000-0000-0000-0000-0000000008b2', id from public.specialties where slug = 'general';
+insert into public.vet_bases (vet_id, commune_id, lat, lng) values
+  ('00000000-0000-0000-0000-0000000008b2',
+   (select id from public.communes where name = 'Punta Arenas'), -53.1638, -70.9171);
 
 -- Fundaciones de prueba: X por defecto, Y alternativa, Z inactiva.
 update public.foundations set is_default = false where is_default;
@@ -211,7 +233,7 @@ select is((select foundation_id from public.quotes where id = pg_temp.id('q1')),
 select is((public.quote_visit('00000000-0000-0000-0000-00000000e0a1',
   '00000000-0000-0000-0000-00000000e1a1', pg_temp.spec('general'), 'scheduled',
   '00000000-0000-0000-0000-0000000008b1') ->> 'distance_km')::numeric, 8.0,
-  'al cliente solo se le muestra la distancia redondeada a 0,5 km');
+  'al cliente solo se le muestra la distancia redondeada al km (desde el origen aproximado)');
 select is((select pricing_config_id from public.quotes where id = pg_temp.id('q1')),
   (select id from public.current_pricing_config()), 'la cotización guarda la versión de parámetros');
 select ok((select expires_at > now() + interval '29 minutes' and consumed_at is null
@@ -221,7 +243,7 @@ insert into t_ids select 'q_urg', (public.quote_visit(
   '00000000-0000-0000-0000-00000000e0a1', '00000000-0000-0000-0000-00000000e1a1',
   pg_temp.spec('general'), 'urgent') ->> 'quote_id')::uuid;
 select is(
-  (select concat_ws(',', distance_m is null, urgent_surcharge, service_price, total)
+  (select concat_ws(',', billable_km = 0, urgent_surcharge, service_price, total)
    from public.quotes where id = pg_temp.id('q_urg')),
   't,8097,35087,35087', 'urgencia sin vet asignado: recargo 30 %, distancia pendiente');
 
@@ -276,6 +298,43 @@ select throws_ok(
   '22023', 'La fundación no existe o no está activa', 'no se elige una fundación inactiva');
 select is((select count(*)::int from public.vet_bases), 0,
   'el dueño no ve el punto de partida del vet');
+
+-- QA-F5-01: la distancia exacta no es legible; QA-F5-02: radio máximo.
+select throws_ok($$ select distance_m from public.quotes limit 1 $$,
+  '42501', null, 'el dueño no lee quotes.distance_m (grant por columna)');
+select lives_ok($$ select total, billable_km from public.quotes limit 1 $$,
+  'el dueño sí lee los montos de sus cotizaciones');
+select throws_ok(
+  $$ select public.quote_visit('00000000-0000-0000-0000-00000000e0a1',
+       '00000000-0000-0000-0000-00000000e1a1', pg_temp.spec('general'), 'scheduled',
+       '00000000-0000-0000-0000-0000000008b2') $$,
+  '22023', 'El veterinario está fuera del radio de atención (máximo 30 km)',
+  'un vet a ~2.200 km queda fuera del radio máximo (pricing_config.max_distance_km)');
+
+-- QA-F5-02: la base del vet se valida contra los límites comunales.
+reset role;
+select pg_temp.login('00000000-0000-0000-0000-0000000008b1');
+set local role authenticated;
+select throws_ok(
+  $$ update public.vet_bases set lat = -32.889, lng = -68.845
+     where vet_id = '00000000-0000-0000-0000-0000000008b1' $$,
+  '22023', 'La ubicación debe estar en Chile', 'base del vet fuera de Chile (Mendoza) rechazada');
+select throws_ok(
+  $$ update public.vet_bases set commune_id = (select id from public.communes where name = 'Punta Arenas')
+     where vet_id = '00000000-0000-0000-0000-0000000008b1' $$,
+  '22023', 'La ubicación marcada no está en la comuna elegida', 'base con comuna incoherente rechazada');
+select throws_ok(
+  $$ update public.vet_bases set fuzz_dlat = 0
+     where vet_id = '00000000-0000-0000-0000-0000000008b1' $$,
+  '42501', null, 'el vet no puede anular su desplazamiento aleatorio');
+reset role;
+select ok((select m between 990 and 2010 from t_fuzz),
+  'el origen aproximado queda a 1–2 km de la base real (QA-F5-01)');
+select ok(not has_column_privilege('authenticated', 'public.quotes', 'distance_m', 'select')
+      and has_column_privilege('authenticated', 'public.quotes', 'total', 'select'),
+  'privilegios por columna en quotes: sin distance_m');
+select pg_temp.login('00000000-0000-0000-0000-0000000008a1');
+set local role authenticated;
 
 -- El dueño elige su fundación en el perfil.
 select throws_ok(
