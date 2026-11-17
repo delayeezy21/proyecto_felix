@@ -160,11 +160,11 @@ npx --yes supabase@3.2.0 test db --workdir <dir>
 docker exec -i supabase_db_felix-load psql -U supabase_admin -d postgres < tool/load/seed_carga.sql
 docker exec supabase_db_felix-load psql -U supabase_admin -d postgres \
   -c "create extension if not exists pg_stat_statements with schema extensions"
-node tool/load/capacidad.mjs "$(npx --yes supabase@3.2.0 status --workdir <dir> -o json | sed -n '/^{/,$p')"
+LOAD_ALLOW_URL=http://127.0.0.1:55341 node tool/load/capacidad.mjs "$(npx --yes supabase@3.2.0 status --workdir <dir> -o json | sed -n '/^{/,$p')"
 npx --yes supabase@3.2.0 stop --workdir <dir> --no-backup
 ```
 
-El script se niega a correr contra hosts que no sean locales y contra el puerto 54321 (el stack compartido).
+El script se niega a correr si `LOAD_ALLOW_URL` no coincide con la `API_URL`, si el host no es local, si el puerto es 543xx (stack compartido) o si el stack no tiene el admin `@carga.felix.test` de `seed_carga.sql`. `seed_carga.sql` se niega a cargar dos veces y solo inserta filas para sus propios usuarios.
 
 ## Hallazgos colaterales (corregidos o documentados)
 

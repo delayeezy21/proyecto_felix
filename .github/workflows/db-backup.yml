@@ -5,7 +5,7 @@
 # artefactos, por eso el respaldo se cifra con una clave PÚBLICA de `age`
 # (el runner no puede descifrarlo; la clave privada vive solo offline).
 #
-# Environment "backup" (sin revisores, para que el cron no se bloquee):
+# Environment "backup" (revisor obligatorio y solo la rama master; ver el runbook, paso 11):
 #   secrets: SUPABASE_BACKUP_DB_URL  (cadena del Session pooler, puerto 5432; IPv4)
 #            BACKUP_AGE_RECIPIENT    (clave pública age1...)
 name: Respaldo semanal (pg_dump cifrado)
@@ -34,8 +34,8 @@ jobs:
       DB_URL: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
       AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
           version: 3.2.0
       - name: Instalar age
@@ -62,7 +62,7 @@ jobs:
           shred -u "$RUNNER_TEMP"/dump/*.sql
           ls -l "$RUNNER_TEMP/felix-backup-$STAMP.tar.gz.age"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: felix-backup-${{ env.STAMP }}
           path: ${{ runner.temp }}/felix-backup-${{ env.STAMP }}.tar.gz.age

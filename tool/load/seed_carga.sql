@@ -15,6 +15,15 @@
 begin;
 set local session_replication_role = replica;
 
+-- Solo una vez por stack: los datos ajenos (E2E, seed demo) no se tocan y las
+-- tablas por vet insertan solo para los vets de esta carga (QA-25).
+do $$
+begin
+  if exists (select 1 from auth.users where email like '%@carga.felix.test') then
+    raise exception 'Este stack ya tiene la carga de 5.000 usuarios (@carga.felix.test)';
+  end if;
+end $$;
+
 -- Un solo hash bcrypt (costo 10, como GoTrue) para no gastar minutos en crypt().
 create temp table _pw as
   select extensions.crypt('Carga-Felix-2026!', extensions.gen_salt('bf', 10)) as h;
@@ -84,27 +93,32 @@ from _u u where u.role = 'vet';
 insert into public.vet_species (vet_id, species_id)
 select v.user_id, s.id
 from public.vet_profiles v
-cross join lateral (select id from public.species order by id limit 2) s;
+cross join lateral (select id from public.species order by id limit 2) s
+where v.user_id in (select id from _u)
+on conflict do nothing;
 
 insert into public.vet_specialties (vet_id, specialty_id)
 select v.user_id, s.id
 from public.vet_profiles v
-cross join lateral (select id from public.specialties order by id limit 2) s;
+cross join lateral (select id from public.specialties order by id limit 2) s
+where v.user_id in (select id from _u)
+on conflict do nothing;
 
 insert into public.vet_availability (vet_id, weekday, start_min, end_min)
 select v.user_id, d, 540, 1080
-from public.vet_profiles v cross join generate_series(1, 5) d;
+from public.vet_profiles v cross join generate_series(1, 5) d
+where v.user_id in (select id from _u);
 
 insert into public.vet_documents (vet_id, kind, storage_path, mime, size_bytes, review_status)
 select v.user_id, k, null, 'application/pdf', 250000,
   case v.status when 'approved' then 'accepted' when 'rejected' then 'rejected' else 'pending' end
 from public.vet_profiles v
 cross join unnest(array['degree_certificate', 'id_card_front']) k
-where v.submitted_at is not null;
+where v.submitted_at is not null and v.user_id in (select id from _u);
 
 insert into public.vet_title_verifications (vet_id, source, outcome, risk, run_trigger, requested_by, provider_version)
 select v.user_id, 'rules', 'skipped', 'low', 'submit', v.user_id, 'carga-1'
-from public.vet_profiles v where v.submitted_at is not null;
+from public.vet_profiles v where v.submitted_at is not null and v.user_id in (select id from _u);
 
 -- Términos, aviso de privacidad y consentimientos (30 % acepta marketing).
 insert into public.terms_acceptances (user_id, version)

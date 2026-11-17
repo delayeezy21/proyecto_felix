@@ -72,7 +72,24 @@ npx --yes supabase@3.2.0 link --project-ref <REF>    # pide la contraseña de la
 ```
 
 - `link` usa el **pooler IPv4** por defecto. La conexión directa `db.<ref>.supabase.co` es solo IPv6.
-- Crea además un **Access token** para GitHub Actions: Account → Access Tokens → nombre `github-actions-felix`. Guárdalo en el gestor.
+- Crea además un **access token con alcance (scoped PAT)** para GitHub Actions, **uno por proyecto**:
+  - Account → Access Tokens → *Generate new token*. Los tokens del dashboard ya nacen con alcance y empiezan con `sbp_fc`.
+  - **Nunca** uses un token "Legacy": tiene los mismos privilegios que tu usuario sobre **todos** tus proyectos.
+  - Nombre: `gha-felix-beta`. **Proyecto:** solo `felix-beta`. **Vencimiento:** 90 días (anótalo en el calendario para rotarlo).
+  - Permisos mínimos, según la CLI 3.2.0 y la [guía de personal access tokens](https://supabase.com/docs/guides/platform/personal-access-tokens):
+
+    | Para | Permiso |
+    |---|---|
+    | `link` | Project Settings (Read), API Keys (Read), API Key Secrets (Read) |
+    | `migration list` / `db push --remote` | Database (Read-write), Database Pooling Config (Read), Migrations (Read-write) |
+    | `db advisors --remote` | Advisors (Read) |
+    | `functions deploy` | Edge Functions (Read-write) |
+    | `secrets set` (manual, no lo usa el workflow) | Edge Function Secrets (Read-write) |
+
+  - Si el formulario cambia de nombres, elige los equivalentes y **solo para ese proyecto**. Si un paso falla por permisos, el error de la CLI dice cuál falta: agrégalo y nada más.
+  - Repite para producción: `gha-felix-prod`, limitado al proyecto `felix-prod`.
+  - Guárdalos en el gestor.
+- **Si tu cuenta no ofreciera tokens con alcance:** crea **una organización de Supabase por ambiente** (`felix-beta-org` y `felix-prod-org`), cada una con su propio usuario de servicio (un correo distinto) y su token. Así el token de beta no puede tocar producción.
 
 **Listo cuando:** `SB migration list --remote` muestra las migraciones locales y la columna remota vacía.
 
@@ -268,22 +285,36 @@ npx --yes wrangler@3 pages project create felix-beta --production-branch main
 
 ### 8.3 GitHub Environments (Settings → Environments)
 
+En los **tres** Environments (`beta`, `production` y `backup`):
+- **Deployment branches and tags → Selected branches → `master`.** Así un workflow modificado en otra rama no puede leer estos secretos.
+- **Required reviewers:** tú.
+
 **`beta`**
 - Variables: `SUPABASE_URL=https://<REF>.supabase.co`, `SUPABASE_PROJECT_REF=<REF>`, `CLOUDFLARE_PAGES_PROJECT=felix-beta`, `MAP_PROVIDER=osm` y, opcional, `GOOGLE_AUTH_ENABLED=false`.
-- Secretos: `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` y, opcional, `MAPS_API_KEY_WEB`.
+- Secretos:
+  - `SUPABASE_PUBLISHABLE_KEY`;
+  - `SUPABASE_ACCESS_TOKEN`: el token con alcance **solo** al proyecto de beta (paso 2);
+  - `SUPABASE_DB_PASSWORD`;
+  - `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`;
+  - opcional, `MAPS_API_KEY_WEB`.
 
 **`production`**
-- Lo mismo, con los valores del proyecto de producción.
-- Activa **Required reviewers** (tú) y **Deployment branches: master**.
+- Lo mismo, con los valores y el token **del proyecto de producción**.
 
 **`backup`**
 - Ver el paso 11.
+
+Por qué así (QA-23):
+- Cada token de Supabase llega a **un solo** proyecto, así que un run de `beta` no puede tocar producción.
+- La restricción de rama impide que una rama con un workflow alterado lea los secretos.
+- El token de Cloudflare Pages tiene alcance de cuenta (Cloudflare no lo limita a un proyecto de Pages); lo protegen la restricción de rama y el revisor.
+- Si quieres aislarlo del todo, usa una cuenta de Cloudflare distinta para producción.
 
 ### 8.4 Desplegar
 
 GitHub → Actions → **Deploy Web (Cloudflare Pages)** → Run workflow:
 - `environment`: `beta`;
-- `confirm`: `DESPLEGAR`.
+- `confirm`: `DESPLEGAR beta` (o `DESPLEGAR production`). Si no coincide con el ambiente, el run **falla en rojo**.
 
 El workflow:
 1. corre `flutter analyze` y `flutter test`;
@@ -296,6 +327,25 @@ Cabeceras (`web/_headers`, que Flutter copia a `build/web`):
 - Flutter Web **no pone hash** en `main.dart.js`, `flutter_bootstrap.js` ni `assets/`. Por eso todo va con `Cache-Control: no-cache`: el navegador revalida con ETag y recibe 304 si no cambió. Así un deploy nuevo nunca convive con un JS viejo.
 - `canvaskit/`, `icons/` y `favicon.png`: 1 día.
 - Seguridad: `nosniff`, `X-Frame-Options: DENY`, HSTS, `Referrer-Policy` y `Permissions-Policy` (geolocalización y cámara solo del propio sitio).
+- **Content-Security-Policy**, por ahora en modo **`Content-Security-Policy-Report-Only`**: el navegador solo avisa en la consola y no bloquea nada. Qué permite:
+
+  | Directiva | Permite | Para qué |
+  |---|---|---|
+  | `script-src` | `'self'`, `'wasm-unsafe-eval'`, `https://www.gstatic.com` y `https://maps.googleapis.com` | Flutter y CanvasKit/Skwasm (WASM desde gstatic) y el JS de Google Maps en Web |
+  | `connect-src` | `https://*.supabase.co`, `wss://*.supabase.co`, `https://nominatim.openstreetmap.org`, tiles de OSM, Stadia y MapTiler, `https://*.googleapis.com`, `https://www.gstatic.com` y `https://fonts.gstatic.com` | API, Auth, Storage, Realtime, geocoding, tiles (Flutter los descarga con `fetch`) y la descarga de CanvasKit y fuentes |
+  | `img-src` | `'self'`, `data:`, `blob:`, `https://*.supabase.co`, tiles de OSM, Stadia y MapTiler, y `*.googleapis.com`/`*.gstatic.com`/`*.google.com` | Documentos firmados, tiles y mapas |
+  | `style-src` | `'self'`, `'unsafe-inline'` y `https://fonts.googleapis.com` | Flutter inyecta estilos en línea |
+  | `font-src` | `'self'`, `data:` y `https://fonts.gstatic.com` | Fuentes de respaldo de Flutter |
+  | `worker-src` | `'self'` y `blob:` | Service worker y workers de Skwasm |
+  | `frame-ancestors` | `'none'` | Igual que `X-Frame-Options: DENY` |
+  | `frame-src` | `https://www.google.com` | Iframes internos de Google Maps |
+  | `object-src`, `base-uri`, `form-action` | `'none'`, `'self'` y `'self'` | Endurecimiento estándar |
+
+  **Cómo pasarla a obligatoria:**
+  1. Despliega en beta, abre la app en Chrome con DevTools → Console y recorre todos los flujos (login, registro, subir documento, mapas, admin).
+  2. Si aparece `[Report Only] Refused to ...`, agrega ese origen a la directiva que corresponda en `web/_headers`.
+  3. Cuando una sesión completa no muestre avisos, cambia el nombre de la cabecera de `Content-Security-Policy-Report-Only:` a `Content-Security-Policy:` y vuelve a desplegar.
+  4. Con un dominio propio de Supabase (`api.felix.cl`), reemplaza `*.supabase.co` por ese dominio.
 - Rutas: la app usa la estrategia de URL con `#` de go_router. Aunque se cambiara a rutas limpias, Pages ya sirve `index.html` para cualquier ruta (fallback SPA).
 
 **Listo cuando:** `https://felix-beta.pages.dev` carga, te registras y recargar en cualquier pantalla no da 404.
@@ -348,7 +398,12 @@ Activar la capa 2:
 2. `age-keygen -o felix-backup.key`. La línea `# public key: age1...` es la clave **pública**.
 3. Guarda `felix-backup.key` **fuera del PC**: en el gestor de contraseñas y en un pendrive. **Si la pierdes, los respaldos no se pueden abrir.**
 4. Dashboard → Connect → **Session pooler** (IPv4, puerto 5432): copia la cadena con la contraseña.
-5. GitHub → Environment **`backup`** (sin revisores): secretos `SUPABASE_BACKUP_DB_URL` (esa cadena) y `BACKUP_AGE_RECIPIENT` (`age1...`).
+5. GitHub → Environment **`backup`**:
+   - **Required reviewers:** tú;
+   - **Deployment branches:** `master`;
+   - secretos `SUPABASE_BACKUP_DB_URL` (esa cadena) y `BACKUP_AGE_RECIPIENT` (`age1...`).
+
+   Con el revisor activado, el cron de cada domingo queda **esperando tu aprobación**: GitHub te avisa por correo y lo apruebas en Actions con un clic. Si no lo apruebas en 30 días, se cancela. Es el precio de que nadie pueda sacar la cadena de conexión (que trae la contraseña de `postgres`) sin pasar por ti.
 6. GitHub → Settings → Variables (repo) → `BACKUP_ENABLED=true`.
 7. Actions → **Respaldo semanal** → Run workflow una vez para probar.
 
@@ -454,7 +509,7 @@ git checkout HEAD -- supabase/functions
 | `SUPABASE_URL` | Environment beta/production | Variable | Settings → API |
 | `SUPABASE_PROJECT_REF` | Environment beta/production | Variable | Settings → General |
 | `SUPABASE_PUBLISHABLE_KEY` | Environment beta/production | Secreto (es pública, pero así no queda en los logs) | Settings → API Keys |
-| `SUPABASE_ACCESS_TOKEN` | Environment beta/production | Secreto | Account → Access Tokens |
+| `SUPABASE_ACCESS_TOKEN` | Environment beta/production | Secreto | Token con alcance a ese proyecto (paso 2) |
 | `SUPABASE_DB_PASSWORD` | Environment beta/production | Secreto | Paso 1 |
 | `CLOUDFLARE_API_TOKEN` | Environment beta/production | Secreto | Paso 8.2 |
 | `CLOUDFLARE_ACCOUNT_ID` | Environment beta/production | Secreto | Paso 8.2 |

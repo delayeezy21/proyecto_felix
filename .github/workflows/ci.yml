@@ -13,8 +13,8 @@ jobs:
     name: Flutter (analyze + test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: 3.47.9
           channel: stable
@@ -28,8 +28,8 @@ jobs:
     name: Supabase (pgTAP)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
           version: 3.2.0
       - name: supabase start (con un reintento ante fallas del entorno)
@@ -39,7 +39,7 @@ jobs:
         run: node tool/e2e/auth_e2e.mjs "$(supabase status -o json | sed -n '/^{/,$p')"
       - name: E2E onboarding de vets (Storage + Edge Function de purga)
         run: node tool/e2e/vet_e2e.mjs "$(supabase status -o json | sed -n '/^{/,$p')"
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: 3.47.9
           channel: stable
@@ -58,7 +58,7 @@ jobs:
     name: Sin secretos en el repo
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Buscar claves y archivos .env versionados
         run: |
           if git ls-files | grep -E '(^|/)\.env($|\.)'; then
@@ -68,3 +68,5 @@ jobs:
             echo "Posible secreto en el código"; exit 1
           fi
           echo "OK: sin secretos detectados"
+      - name: Pruebas del validador de entornos (tool/env)
+        run: node --test tool/env/validar_env.test.mjs

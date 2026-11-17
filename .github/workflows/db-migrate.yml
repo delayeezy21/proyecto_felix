@@ -55,10 +55,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
           version: 3.2.0
+      # Igual que la nube: solo migraciones, sin seed.sql (QA-26).
+      - name: Desactivar seed.sql en este runner
+        run: |
+          sed -i '/^\[db\.seed\]/,/^\[/ s/^enabled = true/enabled = false/' supabase/config.toml
+          sed -n '/^\[db\.seed\]/,/^sql_paths/p' supabase/config.toml | grep -q '^enabled = false' \
+            || { echo "::error::No se pudo desactivar [db.seed]"; exit 1; }
       - name: supabase start (con un reintento)
         run: supabase start || { supabase stop --no-backup; sleep 15; supabase start; }
       - run: supabase test db
@@ -81,8 +87,8 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
       SUPABASE_YES: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
         with:
           version: 3.2.0
       - name: Link (vía pooler IPv4)

@@ -14,7 +14,7 @@ on:
         options: [beta, production]
         default: beta
       confirm:
-        description: Escribe DESPLEGAR para confirmar
+        description: 'Escribe exactamente: DESPLEGAR <ambiente> (ej.: DESPLEGAR beta)'
         type: string
         required: true
 
@@ -26,17 +26,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guard:
+    name: Confirmación
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar confirmación (falla en rojo si no coincide)
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          TARGET: ${{ inputs.environment }}
+        run: |
+          if [ "$CONFIRM" != "DESPLEGAR $TARGET" ]; then
+            echo "::error::Confirmación incorrecta: escribe 'DESPLEGAR $TARGET'"; exit 1
+          fi
+
   deploy:
     name: Build y deploy (${{ inputs.environment }})
-    if: inputs.confirm == 'DESPLEGAR'
+    needs: guard
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
       name: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: 3.47.9
           channel: stable
@@ -91,7 +104,7 @@ jobs:
           fi
 
       - name: Deploy a Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

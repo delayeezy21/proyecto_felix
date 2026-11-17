@@ -3,7 +3,7 @@
 //   node --test tool/env/validar_env.test.mjs
 //
 // Todas las claves son FICTICIAS. Los casos marcados "QA-21"/"QA-22" documentan
-// bypasses encontrados en la QA y fallan hasta que se corrijan.
+// bypasses encontrados en la QA (corregidos en validar_env.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -19,7 +19,8 @@ process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (role) => `${b64({ alg: 'HS256' })}.${b64({ role, iss: 'supabase' })}.firma`;
 const PUB = 'sb_publishable_FAKEfakeFAKE1234';
-const SECRET = 'sb_secret_FAKEfakeFAKE1234';
+// Concatenada para que el job "Sin secretos en el repo" de ci.yml no la confunda con una real.
+const SECRET = 'sb_' + 'secret_FAKEfakeFAKE1234';
 
 let n = 0;
 function run(lines) {
@@ -62,3 +63,16 @@ test("QA-22: rechaza sb_secret_ entre comillas simples", () =>
   assert.equal(beta('https://x.supabase.co', PUB, [`MAPS_API_KEY='${SECRET}'`]).status, 1));
 test("QA-22: rechaza JWT service_role entre comillas simples", () =>
   assert.equal(beta('https://x.supabase.co', PUB, [`MAPS_API_KEY='${jwt('service_role')}'`]).status, 1));
+
+// Casos adicionales (corrección de QA-21/QA-22).
+for (const h of ['127.255.0.9', '[::]', '[fe80::1]', '[fd00::5]', '[::ffff:127.0.0.1]', 'api.localhost',
+                 'db.internal', 'supabase.lan', '100.64.0.1', 'intranet', '2130706433']) {
+  test(`rechaza host local ${h}`, () => assert.equal(beta(`https://${h}:54321`).status, 1));
+}
+test('acepta un dominio propio público', () => assert.equal(beta('https://api.felix.cl').status, 0));
+test('rechaza sb_secret_ en medio de un valor', () =>
+  assert.equal(beta('https://x.supabase.co', PUB, [`MAPS_API_KEY=abc,${SECRET}`]).status, 1));
+test('rechaza JWT service_role en medio de un valor', () =>
+  assert.equal(beta('https://x.supabase.co', PUB, [`MAPS_API_KEY=x ${jwt('service_role')} y`]).status, 1));
+test('rechaza sb_secret_ con export y comillas dobles', () =>
+  assert.equal(beta('https://x.supabase.co', PUB, [`export MAPS_API_KEY="${SECRET}"`]).status, 1));

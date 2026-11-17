@@ -9,7 +9,7 @@
 // iniciar sesión con otro usuario. Las fases corren EN SECUENCIA.
 //
 // Uso:
-//   node tool/load/capacidad.mjs "$(npx --yes supabase@3.2.0 status --workdir <dir> -o json | sed -n '/^{/,$p')"
+//   LOAD_ALLOW_URL=http://127.0.0.1:<puerto> node tool/load/capacidad.mjs "$(npx --yes supabase@3.2.0 status --workdir <dir> -o json | sed -n '/^{/,$p')"
 // Variables opcionales:
 //   LOAD_PHASES=10,25,50,100   VUs por fase
 //   LOAD_PHASE_SECONDS=60      duración de cada fase
@@ -31,8 +31,19 @@ if (!['127.0.0.1', 'localhost'].includes(host)) {
   console.error(`Rechazado: ${API} no es local. Esta prueba es solo para un stack aislado.`);
   process.exit(2);
 }
-if (new URL(API).port === '54321') {
-  console.error('Rechazado: el puerto 54321 es el stack compartido. Usa un stack aislado.');
+// QA-28: hay que nombrar explícitamente el stack de carga.
+const ALLOW = process.env.LOAD_ALLOW_URL ?? '';
+const norm = (u) => u.replace(/\/+$/, '').replace('localhost', '127.0.0.1');
+if (!ALLOW) {
+  console.error('Falta LOAD_ALLOW_URL=<API_URL del stack de carga> (ej.: http://127.0.0.1:55641).');
+  process.exit(2);
+}
+if (norm(ALLOW) !== norm(API)) {
+  console.error(`Rechazado: API_URL (${API}) no coincide con LOAD_ALLOW_URL (${ALLOW}).`);
+  process.exit(2);
+}
+if (/^543\d\d$/.test(new URL(API).port)) {
+  console.error('Rechazado: los puertos 543xx son del stack compartido. Usa un stack aislado.');
   process.exit(2);
 }
 
@@ -224,6 +235,19 @@ function summarize(phaseVus, elapsedMs) {
     rlsLeaks,
     endpoints: rows,
   };
+}
+
+// Pre-chequeo: solo el stack con seed_carga.sql tiene el admin @carga.felix.test.
+{
+  const r = await fetch(`${API}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { apikey: KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'carga-admin@carga.felix.test', password: PASSWORD }),
+  }).catch(() => null);
+  if (!r || !r.ok) {
+    console.error('Rechazado: este stack no tiene los usuarios de tool/load/seed_carga.sql. No es el stack de carga.');
+    process.exit(2);
+  }
 }
 
 const results = [];
