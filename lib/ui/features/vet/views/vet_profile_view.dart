@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/providers.dart';
@@ -197,6 +199,8 @@ class _ProfessionalDataCard extends ConsumerStatefulWidget {
       _ProfessionalDataCardState();
 }
 
+enum _SaveState { saved, pending, saving, invalid, error }
+
 class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
   final _formKey = GlobalKey<FormState>();
   late final _university = TextEditingController(
@@ -212,13 +216,80 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
   late bool _foreign = widget.profile.foreignDegree;
   bool _saving = false;
 
+  /// Guardado automático: antes había que tocar "Guardar" y era fácil
+  /// pasarlo por alto (los datos quedaban sin guardar y el envío fallaba).
+  Timer? _debounce;
+  _SaveState _saveState = _SaveState.saved;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in [_university, _year, _code, _bio]) {
+      c.addListener(_onEdited);
+    }
+  }
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _university.dispose();
     _year.dispose();
     _code.dispose();
     _bio.dispose();
     super.dispose();
+  }
+
+  bool get _dirty {
+    final p = widget.profile;
+    String norm(String? v) => v?.trim() ?? '';
+    return norm(_bio.text) != norm(p.bio) ||
+        (p.canEditProfessionalData &&
+            (norm(_university.text) != norm(p.university) ||
+                norm(_year.text) != (p.graduationYear?.toString() ?? '') ||
+                norm(_code.text) != norm(p.titleVerificationCode) ||
+                _foreign != p.foreignDegree));
+  }
+
+  bool get _silentlyValid =>
+      !widget.profile.canEditProfessionalData ||
+      (_university.text.trim().length >= 3 &&
+          _validateYear(_year.text) == null);
+
+  void _onEdited() {
+    if (!_dirty) return;
+    setState(() => _saveState = _SaveState.pending);
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 900), _autoSave);
+  }
+
+  Future<void> _autoSave() async {
+    if (!mounted || !_dirty) return;
+    if (!_silentlyValid) {
+      setState(() => _saveState = _SaveState.invalid);
+      return;
+    }
+    setState(() => _saveState = _SaveState.saving);
+    try {
+      await _persist();
+      if (!mounted) return;
+      setState(() => _saveState = _SaveState.saved);
+      ref.invalidate(vetProfileProvider);
+    } on Object {
+      if (mounted) setState(() => _saveState = _SaveState.error);
+    }
+  }
+
+  Future<void> _persist() {
+    final repo = ref.read(vetRepositoryProvider);
+    return widget.profile.canEditProfessionalData
+        ? repo.updateProfessionalData(
+            bio: _bio.text,
+            university: _university.text,
+            graduationYear: int.tryParse(_year.text),
+            foreignDegree: _foreign,
+            titleVerificationCode: _code.text,
+          )
+        : repo.updateBio(_bio.text);
   }
 
   String? _validateYear(String? v) {
@@ -231,23 +302,58 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
   Future<void> _save() async {
     final editable = widget.profile.canEditProfessionalData;
     if (editable && !(_formKey.currentState?.validate() ?? false)) return;
+    _debounce?.cancel();
     setState(() => _saving = true);
-    final repo = ref.read(vetRepositoryProvider);
-    await runWithFeedback(
+    final ok = await runWithFeedback(
       context,
-      () => editable
-          ? repo.updateProfessionalData(
-              bio: _bio.text,
-              university: _university.text,
-              graduationYear: int.tryParse(_year.text),
-              foreignDegree: _foreign,
-              titleVerificationCode: _code.text,
-            )
-          : repo.updateBio(_bio.text),
+      _persist,
       onDone: () => ref.invalidate(vetProfileProvider),
       success: 'Datos guardados',
     );
-    if (mounted) setState(() => _saving = false);
+    if (mounted) {
+      setState(() {
+        _saving = false;
+        _saveState = ok ? _SaveState.saved : _SaveState.error;
+      });
+    }
+  }
+
+  Widget _saveIndicator(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (icon, text, color) = switch (_saveState) {
+      _SaveState.saved => (
+        Icons.cloud_done_outlined,
+        'Guardado',
+        scheme.primary,
+      ),
+      _SaveState.pending => (Icons.edit_outlined, 'Cambios sin guardar…', null),
+      _SaveState.saving => (Icons.cloud_upload_outlined, 'Guardando…', null),
+      _SaveState.invalid => (
+        Icons.info_outline,
+        'Completa universidad y año para guardar',
+        scheme.error,
+      ),
+      _SaveState.error => (
+        Icons.error_outline,
+        'No se pudo guardar. Toca "Guardar".',
+        scheme.error,
+      ),
+    };
+    return Row(
+      key: const Key('vet-save-state'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: color),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -299,7 +405,10 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
                 key: const Key('vet-foreign'),
                 contentPadding: EdgeInsets.zero,
                 value: _foreign,
-                onChanged: (v) => setState(() => _foreign = v),
+                onChanged: (v) {
+                  setState(() => _foreign = v);
+                  _onEdited();
+                },
                 title: const Text('Título extranjero revalidado en Chile'),
               ),
             ] else ...[
@@ -317,13 +426,15 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
                 labelText: 'Presentación para los dueños (opcional)',
               ),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.tonal(
-                key: const Key('vet-save-data'),
-                onPressed: _saving ? null : _save,
-                child: const Text('Guardar'),
-              ),
+            Row(
+              children: [
+                Expanded(child: _saveIndicator(context)),
+                FilledButton.tonal(
+                  key: const Key('vet-save-data'),
+                  onPressed: _saving ? null : _save,
+                  child: const Text('Guardar'),
+                ),
+              ],
             ),
           ],
         ),
@@ -555,18 +666,22 @@ class _BlockDialogState extends State<_BlockDialog> {
 // Documentos
 // ---------------------------------------------------------------------------
 
-class _DocumentsCard extends ConsumerWidget {
+class _DocumentsCard extends ConsumerStatefulWidget {
   const new({required this.profile});
 
   final VetProfile profile;
 
-  Future<void> _upload(
-    BuildContext context,
-    WidgetRef ref,
-    VetDocumentKind kind,
-  ) async {
+  @override
+  ConsumerState<_DocumentsCard> createState() => _DocumentsCardState();
+}
+
+class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
+  /// Documento que se está subiendo (muestra un indicador en su fila).
+  VetDocumentKind? _uploading;
+
+  Future<void> _upload(VetDocumentKind kind) async {
     final file = await ref.read(documentPickerProvider).pick();
-    if (file == null || !context.mounted) return;
+    if (file == null || !mounted) return;
     final error = validateDocument(file);
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -574,16 +689,19 @@ class _DocumentsCard extends ConsumerWidget {
       );
       return;
     }
+    setState(() => _uploading = kind);
     await runWithFeedback(
       context,
       () => ref.read(vetRepositoryProvider).uploadDocument(kind, file),
       onDone: () => ref.invalidate(vetDocumentsProvider),
-      success: '${kind.label}: subido',
+      success: '${kind.label}: subido (${file.name})',
     );
+    if (mounted) setState(() => _uploading = null);
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final profile = widget.profile;
     final docs = ref.watch(vetDocumentsProvider).value ?? const [];
     final editable = profile.canEditProfessionalData;
     final allPurged = docs.isNotEmpty && docs.every((d) => d.isPurged);
@@ -601,7 +719,8 @@ class _DocumentsCard extends ConsumerWidget {
               kind: kind,
               latest: docs.where((d) => d.kind == kind).firstOrNull,
               editable: editable,
-              onUpload: () => _upload(context, ref, kind),
+              uploading: _uploading == kind,
+              onUpload: _uploading == null ? () => _upload(kind) : null,
             ),
         ],
       ),
@@ -615,12 +734,16 @@ class _DocumentRow extends StatelessWidget {
     required this.latest,
     required this.editable,
     required this.onUpload,
+    this.uploading = false,
   });
 
   final VetDocumentKind kind;
   final VetDocument? latest;
   final bool editable;
-  final VoidCallback onUpload;
+  final bool uploading;
+
+  /// null mientras otro documento se está subiendo.
+  final VoidCallback? onUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -641,13 +764,23 @@ class _DocumentRow extends StatelessWidget {
       ),
       title: Text(kind.label),
       subtitle: Text(status, key: Key('doc-status-${kind.dbValue}')),
-      trailing: editable
-          ? TextButton(
+      trailing: !editable
+          ? null
+          : uploading
+          ? const SizedBox(
+              key: Key('uploading'),
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                semanticsLabel: 'Subiendo',
+              ),
+            )
+          : TextButton(
               key: Key('upload-${kind.dbValue}'),
               onPressed: onUpload,
               child: Text(doc == null ? 'Subir' : 'Reemplazar'),
-            )
-          : null,
+            ),
     );
   }
 }

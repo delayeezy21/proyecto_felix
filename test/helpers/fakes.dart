@@ -380,6 +380,9 @@ class FakeVetRepository implements VetRepository {
   VetFailure? nextFailure;
   int submits = 0;
 
+  /// Simula una subida lenta (para ver el indicador de carga).
+  Duration uploadDelay = Duration.zero;
+
   void _maybeFail() {
     final f = nextFailure;
     if (f != null) {
@@ -493,6 +496,7 @@ class FakeVetRepository implements VetRepository {
 
   @override
   Future<void> uploadDocument(VetDocumentKind kind, PickedDocument file) async {
+    if (uploadDelay > Duration.zero) await Future<void>.delayed(uploadDelay);
     _maybeFail();
     uploads.add((kind, file.name));
     documents.insert(

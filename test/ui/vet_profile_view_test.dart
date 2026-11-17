@@ -54,6 +54,57 @@ void main() {
     expect(submit.onPressed, isNull);
   });
 
+  testWidgets('los datos profesionales se guardan solos (sin tocar Guardar)', (
+    tester,
+  ) async {
+    await open(tester);
+    await tester.enterText(
+      find.byKey(const Key('vet-university')),
+      'Universidad de Chile',
+    );
+    await tester.pump();
+    expect(find.text('Cambios sin guardar…'), findsOneWidget);
+
+    // Universidad sin año: no se guarda y se avisa por qué.
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      find.text('Completa universidad y año para guardar'),
+      findsOneWidget,
+    );
+    expect(vets.profile.university, isNull);
+
+    await tester.enterText(find.byKey(const Key('vet-year')), '2015');
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(vets.profile.university, 'Universidad de Chile');
+    expect(vets.profile.graduationYear, 2015);
+    expect(find.text('Guardado'), findsOneWidget);
+    expect(find.textContaining('Te falta: Universidad'), findsNothing);
+    expect(find.textContaining('Año de titulación'), findsWidgets);
+  });
+
+  testWidgets('muestra un indicador mientras sube un documento', (
+    tester,
+  ) async {
+    vets.uploadDelay = const Duration(seconds: 2);
+    picker.next = const PickedDocument(name: 'titulo.pdf', bytes: [1, 2, 3]);
+    await open(tester);
+    await tester.ensureVisible(
+      find.byKey(const Key('upload-degree_certificate')),
+    );
+    await tester.tap(find.byKey(const Key('upload-degree_certificate')));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(const Key('uploading')), findsOneWidget);
+    final other = tester.widget<TextButton>(
+      find.byKey(const Key('upload-id_card_front')),
+    );
+    expect(other.onPressed, isNull, reason: 'una carga a la vez');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('uploading')), findsNothing);
+    expect(vets.uploads.single.$2, 'titulo.pdf');
+  });
+
   testWidgets('valida el año de titulación', (tester) async {
     await open(tester);
     await tester.enterText(find.byKey(const Key('vet-university')), 'U. Chile');
