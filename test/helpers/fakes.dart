@@ -526,6 +526,13 @@ class FakeVetRepository implements VetRepository {
   @override
   Future<List<VetApplicationSummary>> pendingApplications() async => pending;
 
+  /// Resultados de la verificación asistida que devuelve applicationDetail.
+  List<TitleVerification> verifications = [];
+
+  /// Lo que agrega cada runTitleVerification (si es null, no cambia nada).
+  List<TitleVerification>? nextVerificationResults;
+  final verificationRuns = <String>[];
+
   @override
   Future<VetApplicationDetail> applicationDetail(String vetId) async =>
       VetApplicationDetail(
@@ -533,7 +540,16 @@ class FakeVetRepository implements VetRepository {
         documents: documents,
         speciesNames: const ['Perro'],
         specialtyNames: const ['Medicina general'],
+        verifications: verifications,
       );
+
+  @override
+  Future<void> runTitleVerification(String vetId) async {
+    verificationRuns.add(vetId);
+    _maybeFail();
+    final next = nextVerificationResults;
+    if (next != null) verifications = next;
+  }
 
   @override
   Future<String> documentUrl(String storagePath) async {

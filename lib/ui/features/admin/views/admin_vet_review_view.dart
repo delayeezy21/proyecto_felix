@@ -114,6 +114,41 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
   final _checked = <String>{};
   final _notes = TextEditingController();
   bool _busy = false;
+  bool _verifying = false;
+
+  /// Chequeos sugeridos por la verificación asistida (se pueden desmarcar).
+  final _suggested = <String>{};
+  String? _prefilledKey;
+  List<TitleVerification> _verifications = const [];
+
+  /// Precompleta lo sugerido una vez por cada conjunto de resultados.
+  void _applySuggestions(List<TitleVerification> verifications) {
+    _verifications = verifications;
+    final key = verifications
+        .map((v) => '${v.source.dbValue}@${v.createdAt.toIso8601String()}')
+        .join(',');
+    if (key == _prefilledKey) return;
+    _prefilledKey = key;
+    final valid = {for (final c in _checks) c.$1};
+    final suggested = {for (final v in verifications) ...v.suggestedChecks}
+        .intersection(valid);
+    _suggested
+      ..clear()
+      ..addAll(suggested);
+    _checked.addAll(suggested);
+  }
+
+  Future<void> _runVerification() async {
+    setState(() => _verifying = true);
+    final ok = await runWithFeedback(
+      context,
+      () => ref.read(vetRepositoryProvider).runTitleVerification(widget.vetId),
+      success: 'Verificación automática ejecutada',
+    );
+    if (!mounted) return;
+    setState(() => _verifying = false);
+    if (ok) ref.invalidate(vetApplicationDetailProvider(widget.vetId));
+  }
 
   @override
   void dispose() {
@@ -124,10 +159,15 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
   bool get _requiredChecked =>
       _checks.where((c) => c.$3).every((c) => _checked.contains(c.$1));
 
+  String get _verificationSummary =>
+      _verifications.map((v) => v.summary).join('; ');
+
   String _composeNotes() {
     final lines = [
       for (final c in _checks)
         '[${_checked.contains(c.$1) ? 'x' : ' '}] ${c.$2}',
+      if (_verifications.isNotEmpty)
+        'Verificación automática: $_verificationSummary',
       if (_notes.text.trim().isNotEmpty) _notes.text.trim(),
     ];
     return lines.join('\n');
@@ -245,6 +285,7 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
     final p = d.profile;
     final t = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
+    _applySuggestions(d.verifications);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Center(
@@ -315,6 +356,59 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
               ),
               const SizedBox(height: 12),
               _ReviewSection(
+                key: const Key('verification-section'),
+                icon: Icons.fact_check_outlined,
+                title: 'Verificación automática',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Solo sugiere chequeos: tú decides. Si falla o está '
+                      'apagada, revisa manualmente como siempre.',
+                      style: t.bodySmall,
+                    ),
+                    if (d.verifications.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Aún no hay resultados para esta solicitud.',
+                          key: const Key('verification-empty'),
+                          style: t.bodyMedium,
+                        ),
+                      ),
+                    for (final v in d.verifications)
+                      ListTile(
+                        key: Key('verification-${v.source.dbValue}'),
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(switch (v.outcome) {
+                          VerificationOutcome.match => Icons.verified_outlined,
+                          VerificationOutcome.error => Icons.cloud_off,
+                          _ => Icons.help_outline,
+                        }),
+                        title: Text(v.source.label),
+                        subtitle: Text(
+                          '${v.outcomeLabel}\n'
+                          '${v.risk == null ? '' : '${v.risk!.label} · '}'
+                          '${_date(v.createdAt)}',
+                        ),
+                        isThreeLine: true,
+                      ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        key: const Key('run-verification'),
+                        onPressed: _verifying ? null : _runVerification,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: Text(
+                          _verifying ? 'Verificando…' : 'Ejecutar verificación',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _ReviewSection(
                 icon: Icons.checklist,
                 title: 'Lista de chequeo',
                 child: Column(
@@ -339,6 +433,19 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
                               : _checked.remove(c.$1),
                         ),
                         title: Text(c.$3 ? c.$2 : '${c.$2} (opcional)'),
+                        subtitle: _suggested.contains(c.$1)
+                            ? Text(
+                                c.$3
+                                    // Chequeo obligatorio premarcado: la
+                                    // decisión sigue siendo del admin.
+                                    ? 'Sugerido por la verificación '
+                                          'automática: confírmalo tú antes '
+                                          'de aprobar'
+                                    : 'Sugerido por la verificación '
+                                          'automática',
+                                key: Key('suggested-${c.$1}'),
+                              )
+                            : null,
                       ),
                     const SizedBox(height: 8),
                     TextField(
@@ -408,6 +515,7 @@ class _ReviewSection extends StatelessWidget {
     required this.title,
     required this.child,
     this.titleStyle,
+    super.key,
   });
 
   final IconData icon;
