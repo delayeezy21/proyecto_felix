@@ -1,0 +1,27 @@
+# Cabeceras de Cloudflare Pages (flutter build web copia este archivo a build/web).
+# Ver docs/despliegue-beta.md, paso 8.
+#
+# Flutter Web NO pone hash en los nombres (main.dart.js, flutter_bootstrap.js,
+# assets/...): por eso todo se revalida siempre (no-cache = usa ETag y responde
+# 304 si no cambió). Solo CanvasKit e íconos tienen caché corta.
+# El fallback SPA es automático: sin 404.html en la raíz, Pages sirve index.html.
+
+/*
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(self), payment=()
+  Strict-Transport-Security: max-age=31536000
+
+/canvaskit/*
+  ! Cache-Control
+  Cache-Control: public, max-age=86400
+
+/icons/*
+  ! Cache-Control
+  Cache-Control: public, max-age=86400
+
+/favicon.png
+  ! Cache-Control
+  Cache-Control: public, max-age=86400
