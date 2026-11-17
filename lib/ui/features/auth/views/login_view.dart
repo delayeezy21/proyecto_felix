@@ -162,6 +162,11 @@ class _LoginViewState extends ConsumerState<LoginView> {
           onPressed: busy ? null : () => context.go(AppRoutes.signUp),
           child: const Text('¿No tienes cuenta? Crear cuenta'),
         ),
+        TextButton(
+          key: const Key('login-about'),
+          onPressed: () => context.push(AppRoutes.about),
+          child: const Text('Acerca de y licencias'),
+        ),
       ],
     );
   }

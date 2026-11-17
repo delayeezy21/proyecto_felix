@@ -12,6 +12,7 @@ import 'package:proyecto_felix/ui/features/auth/views/login_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/reset_password_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/sign_up_view.dart';
 import 'package:proyecto_felix/ui/features/foundation/views/foundation_home_view.dart';
+import 'package:proyecto_felix/ui/features/home/views/about_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/session_error_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/splash_view.dart';
 import 'package:proyecto_felix/ui/features/onboarding/views/onboarding_view.dart';
@@ -59,6 +60,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.signUp,
         builder: (context, state) => const SignUpView(),
+      ),
+      GoRoute(
+        path: AppRoutes.about,
+        builder: (context, state) => const AboutView(),
       ),
       GoRoute(
         path: AppRoutes.forgotPassword,

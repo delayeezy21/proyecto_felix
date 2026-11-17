@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/pricing.dart';
@@ -31,6 +33,15 @@ class OwnerProfileView extends ConsumerWidget {
                 Text(name, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 16),
               _FoundationChoice(foundations: list, currentId: id),
+              const Divider(height: 40),
+              ListTile(
+                key: const Key('profile-about'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.info_outline),
+                title: const Text('Acerca de y licencias'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRoutes.about),
+              ),
             ],
           ),
         ),

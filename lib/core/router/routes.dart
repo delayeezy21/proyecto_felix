@@ -7,6 +7,7 @@ abstract final class AppRoutes {
   static const signUp = '/signup';
   static const forgotPassword = '/forgot-password';
   static const resetPassword = '/reset-password';
+  static const about = '/about';
   static const onboarding = '/onboarding';
   static const owner = '/owner';
   static const ownerPetNew = '/owner/pets/new';
@@ -42,6 +43,10 @@ abstract final class AppRoutes {
   }) {
     if (recoveringPassword && session is SignedIn) {
       return location == resetPassword ? null : resetPassword;
+    }
+    // "Acerca de / licencias" se abre con o sin sesión (atribución CC BY/ODbL).
+    if (location == about && (session is SignedOut || session is SignedIn)) {
+      return null;
     }
     switch (session) {
       case SessionLoading():
