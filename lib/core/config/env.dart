@@ -24,6 +24,10 @@ class Env {
     required this.mapProvider,
     required this.mapsApiKey,
     this.googleAuthEnabled = false,
+    this.osmTileUrl = defaultOsmTileUrl,
+    this.osmTileAttribution = defaultOsmAttribution,
+    this.nominatimUrl = defaultNominatimUrl,
+    this.geocodingApiKey = '',
   });
 
   factory fromEnvironment() => Env(
@@ -38,7 +42,30 @@ class Env {
       const String.fromEnvironment('MAP_PROVIDER', defaultValue: 'osm'),
     ),
     mapsApiKey: const String.fromEnvironment('MAPS_API_KEY'),
+    osmTileUrl: _orDefault(
+      const String.fromEnvironment('OSM_TILE_URL'),
+      defaultOsmTileUrl,
+    ),
+    osmTileAttribution: _orDefault(
+      const String.fromEnvironment('OSM_TILE_ATTRIBUTION'),
+      defaultOsmAttribution,
+    ),
+    nominatimUrl: _orDefault(
+      const String.fromEnvironment('NOMINATIM_URL'),
+      defaultNominatimUrl,
+    ),
+    // El analizador lo ve vacío sin --dart-define; en ejecución no lo es.
+    // ignore: avoid_redundant_argument_values
+    geocodingApiKey: const String.fromEnvironment('GOOGLE_GEOCODING_API_KEY'),
   );
+
+  /// Tiles públicos de OSM: sirven para desarrollo y demos, NO para tráfico
+  /// alto (política de uso de la OSMF). En producción se usa Stadia o
+  /// MapTiler vía `OSM_TILE_URL`.
+  static const defaultOsmTileUrl =
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  static const defaultOsmAttribution = '© OpenStreetMap contributors';
+  static const defaultNominatimUrl = 'https://nominatim.openstreetmap.org';
 
   final String supabaseUrl;
   final String supabasePublishableKey;
@@ -49,6 +76,22 @@ class Env {
   /// `[auth.external.google] enabled` en Supabase; si no, el login falla con
   /// "provider is not enabled".
   final bool googleAuthEnabled;
+
+  /// Plantilla de tiles raster (`{z}/{x}/{y}`) del proveedor OSM.
+  final String osmTileUrl;
+
+  /// Atribución que exige el proveedor de tiles.
+  final String osmTileAttribution;
+
+  /// Servidor Nominatim (geocoding de OSM). El público admite 1 req/s máximo.
+  final String nominatimUrl;
+
+  /// Clave de la API REST de Geocoding de Google (solo Android). Distinta de
+  /// [mapsApiKey]; ver [effectiveGeocodingProvider].
+  final String geocodingApiKey;
+
+  static String _orDefault(String value, String fallback) =>
+      value.trim().isEmpty ? fallback : value.trim();
 
   static bool _isTrue(String value) => value.trim().toLowerCase() == 'true';
 
@@ -72,9 +115,12 @@ class Env {
   /// Proveedor de mapas real según la plataforma.
   ///
   /// Windows siempre usa OSM (`google_maps_flutter` no soporta Windows), y
-  /// Google sin API key cae a OSM.
+  /// Google sin API key cae a OSM. iOS también usa OSM hasta probar la clave
+  /// nativa en un Mac (falta `GMSServices.provideAPIKey` en el AppDelegate).
   MapProvider effectiveMapProvider(AppPlatform platform) {
-    if (platform == AppPlatform.windows || platform == AppPlatform.other) {
+    if (platform == AppPlatform.windows ||
+        platform == AppPlatform.ios ||
+        platform == AppPlatform.other) {
       return MapProvider.osm;
     }
     if (mapProvider == MapProvider.google && mapsApiKey.isEmpty) {
@@ -82,4 +128,17 @@ class Env {
     }
     return mapProvider;
   }
+
+  /// Proveedor de geocoding: Google solo en Android y solo con una clave
+  /// propia ([geocodingApiKey]); si no, Nominatim.
+  ///
+  /// * Web: la API REST de Geocoding de Google no admite CORS.
+  /// * Android: la API REST rechaza (REQUEST_DENIED) una clave restringida a
+  ///   la app si la petición no trae `X-Android-Package` y `X-Android-Cert`
+  ///   (QA-9e912e5). Por eso no se reutiliza la clave del mapa: hace falta
+  ///   una clave restringida por API (solo Geocoding API) y con cuota.
+  MapProvider effectiveGeocodingProvider(AppPlatform platform) =>
+      platform == AppPlatform.android && geocodingApiKey.isNotEmpty
+      ? MapProvider.google
+      : MapProvider.osm;
 }

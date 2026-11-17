@@ -42,10 +42,48 @@ void main() {
       expect(google.effectiveMapProvider(AppPlatform.windows), MapProvider.osm);
     });
 
-    test('Android, iOS y Web usan Google si hay API key', () {
-      for (final p in [AppPlatform.android, AppPlatform.ios, AppPlatform.web]) {
+    test('Android y Web usan Google si hay API key', () {
+      for (final p in [AppPlatform.android, AppPlatform.web]) {
         expect(google.effectiveMapProvider(p), MapProvider.google);
       }
+    });
+
+    test('iOS usa OSM hasta configurar la clave nativa en un Mac', () {
+      expect(google.effectiveMapProvider(AppPlatform.ios), MapProvider.osm);
+    });
+
+    test(
+      'el geocoding no reutiliza la clave del mapa (Android la rechaza)',
+      () {
+        // Con solo MAPS_API_KEY, el geocoding es Nominatim en todas partes.
+        for (final p in AppPlatform.values) {
+          expect(google.effectiveGeocodingProvider(p), MapProvider.osm);
+        }
+      },
+    );
+
+    test('Google Geocoding solo en Android y con su propia clave', () {
+      const env = Env(
+        supabaseUrl: '',
+        supabasePublishableKey: '',
+        mapProvider: MapProvider.google,
+        mapsApiKey: 'abc',
+        geocodingApiKey: 'geo',
+      );
+      expect(
+        env.effectiveGeocodingProvider(AppPlatform.android),
+        MapProvider.google,
+      );
+      expect(env.effectiveGeocodingProvider(AppPlatform.web), MapProvider.osm);
+      expect(
+        env.effectiveGeocodingProvider(AppPlatform.windows),
+        MapProvider.osm,
+      );
+    });
+
+    test('los tiles y Nominatim tienen valores por defecto', () {
+      expect(google.osmTileUrl, contains('{z}/{x}/{y}'));
+      expect(google.nominatimUrl, startsWith('https://'));
     });
 
     test('Google sin API key cae a OSM', () {

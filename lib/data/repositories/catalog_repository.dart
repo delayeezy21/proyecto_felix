@@ -1,4 +1,6 @@
 import 'package:proyecto_felix/domain/models/catalog.dart';
+import 'package:proyecto_felix/domain/models/geo.dart';
+import 'package:proyecto_felix/domain/models/pet.dart' show Breed;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class CatalogFailure implements Exception {
@@ -10,10 +12,34 @@ class CatalogFailure implements Exception {
   String toString() => 'CatalogFailure: $message';
 }
 
+Commune communeFromRow(Map<String, dynamic> r) {
+  // PostgREST entrega la relación 1 a 1 como objeto (o lista, según versión).
+  final raw = r['commune_boundaries'];
+  final b = switch (raw) {
+    final Map<String, dynamic> m => m,
+    final List<dynamic> l when l.isNotEmpty => l.first as Map<String, dynamic>,
+    _ => null,
+  };
+  return Commune(
+    id: r['id'] as int,
+    regionId: r['region_id'] as int,
+    name: r['name'] as String,
+    center: b == null
+        ? null
+        : GeoPoint(
+            (b['center_lat'] as num).toDouble(),
+            (b['center_lng'] as num).toDouble(),
+          ),
+  );
+}
+
 abstract interface class CatalogRepository {
   Future<List<Region>> regions();
 
   Future<List<Commune>> communes(int regionId);
+
+  /// Razas activas de una especie (puede no tener ninguna).
+  Future<List<Breed>> breeds(int speciesId);
 
   /// Para el admin incluye los inactivos (la RLS decide qué se ve).
   Future<List<CatalogItem>> items(CatalogKind kind);
@@ -61,16 +87,30 @@ class SupabaseCatalogRepository implements CatalogRepository {
 
   @override
   Future<List<Commune>> communes(int regionId) => _guard(() async {
+    // El centro viene embebido (relación 1 a 1): una sola consulta.
     final rows = await _client
         .from('communes')
-        .select('id, region_id, name')
+        .select(
+          'id, region_id, name, commune_boundaries(center_lat, center_lng)',
+        )
         .eq('region_id', regionId)
+        .order('name');
+    return [for (final r in rows) communeFromRow(r)];
+  });
+
+  @override
+  Future<List<Breed>> breeds(int speciesId) => _guard(() async {
+    final rows = await _client
+        .from('breeds')
+        .select('id, species_id, name')
+        .eq('species_id', speciesId)
+        .eq('active', true)
         .order('name');
     return [
       for (final r in rows)
-        Commune(
+        Breed(
           id: r['id'] as int,
-          regionId: r['region_id'] as int,
+          speciesId: r['species_id'] as int,
           name: r['name'] as String,
         ),
     ];
