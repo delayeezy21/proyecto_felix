@@ -1,7 +1,7 @@
 -- Fase 5: precios (tabla de casos), cotización congelada, pagos simulados,
 -- aportes y RLS de fundaciones.
 begin;
-select plan(93);
+select plan(97);
 
 -- Fixtures ------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -81,12 +81,13 @@ create function pg_temp.pc(
   p_base integer, p_urgent boolean, p_distance_m integer, p_extra integer default 0,
   p_disc numeric default 0, p_waive boolean default false, p_prev boolean default false,
   p_comm numeric default 15, p_fpct numeric default 20, p_upct numeric default 30,
-  p_per_km integer default 500, p_free_km integer default 5)
+  p_per_km integer default 500, p_free_km integer default 5,
+  p_cod boolean default true)
 returns text language sql as $$
   select concat_ws(',', b.urgent_surcharge, b.billable_km, b.distance_surcharge, b.discount,
                    b.service_price, b.platform_fee, b.foundation_share, b.vet_payout, b.total)
   from private.price_breakdown(p_base, p_urgent, p_distance_m, p_extra, p_comm, p_fpct,
-                               p_upct, p_per_km, p_free_km, p_disc, p_waive, p_prev) b;
+                               p_upct, p_per_km, p_free_km, p_disc, p_waive, p_prev, p_cod) b;
 $$;
 grant execute on function pg_temp.spec(text), pg_temp.id(text) to authenticated;
 
@@ -107,7 +108,7 @@ select is_empty(
                      and c.privilege_type = p) $$,
   'la app no inserta ni modifica cotizaciones, pagos, eventos ni aportes');
 select ok(not has_function_privilege('authenticated',
-            'private.price_breakdown(integer, boolean, integer, integer, numeric, numeric, numeric, integer, integer, numeric, boolean, boolean)', 'execute')
+            'private.price_breakdown(integer, boolean, integer, integer, numeric, numeric, numeric, integer, integer, numeric, boolean, boolean, boolean)', 'execute')
       and not has_function_privilege('authenticated',
             'private.quote_for(uuid, uuid, uuid, integer, text, uuid, extensions.geography, uuid, integer)', 'execute')
       and not has_function_privilege('authenticated', 'private.consume_quote(uuid, uuid)', 'execute'),
@@ -180,6 +181,16 @@ select is(pg_temp.pc(20000, false, null, 0, 0, false, false, 0, 20), '0,0,0,0,20
   'caso 19: comisión 0 % (todo al vet)');
 select is(pg_temp.pc(25000, true, 9999, 500, 20, true), '0,5,2500,5000,22500,3375,675,19125,23000',
   'caso 20: Plus en urgencia a 10 km con donación');
+-- Consulta general a domicilio (decisión de negocio): $26.990 todo incluido
+-- hasta 5 km → comisión 4.049, fundación 810, vet 22.941.
+select is(public.base_tariff((select id from public.species where slug = 'perro'),  pg_temp.spec('general')), 26990, 'la tarifa general vigente es $26.990 (dato de referencia)');
+select is(pg_temp.pc(26990, false, 4999), '0,0,0,0,26990,4049,810,22941,26990',
+  'caso 21: consulta general $26.990 hasta 5 km → vet $22.941 (85 %)');
+select is(pg_temp.pc(26990, false, 8000), '0,3,1500,0,28490,4274,855,24216,28490',
+  'caso 22: consulta general a 8 km (+3 km × $500)');
+select is(pg_temp.pc(26990, false, 8000, 0, 0, false, false, 15, 20, 30, 500, 5, false),
+  '0,3,1500,0,28490,4049,810,24441,28490',
+  'caso 23: opción sin comisión sobre la distancia (el recargo va 100 % al vet)');
 
 -- Cotización por RPC (dueño A) -----------------------------------------------
 select pg_temp.login('00000000-0000-0000-0000-0000000008a1');
@@ -193,8 +204,8 @@ select is(
   (select concat_ws(',', billable_km, distance_surcharge, service_price, platform_fee,
                     foundation_share, vet_payout, extra_donation, total)
    from public.quotes where id = pg_temp.id('q1')),
-  '3,1500,26500,3975,795,22525,1000,27500',
-  'quote_visit: tarifa $25.000 + 3 km (PostGIS, ≈7,99 km) + donación');
+  '3,1500,28490,4274,855,24216,1000,29490',
+  'quote_visit: tarifa general $26.990 + 3 km (PostGIS, ≈7,99 km) + donación');
 select is((select foundation_id from public.quotes where id = pg_temp.id('q1')),
   '00000000-0000-0000-0000-00000000f0a1'::uuid, 'sin elección se usa la fundación por defecto');
 select is((public.quote_visit('00000000-0000-0000-0000-00000000e0a1',
@@ -212,7 +223,7 @@ insert into t_ids select 'q_urg', (public.quote_visit(
 select is(
   (select concat_ws(',', distance_m is null, urgent_surcharge, service_price, total)
    from public.quotes where id = pg_temp.id('q_urg')),
-  't,7500,32500,32500', 'urgencia sin vet asignado: recargo 30 %, distancia pendiente');
+  't,8097,35087,35087', 'urgencia sin vet asignado: recargo 30 %, distancia pendiente');
 
 -- El cliente no puede manipular el precio.
 select throws_ok(
@@ -305,20 +316,20 @@ values (20, 50, 40, 800, 2, 6000, now() - interval '1 second');
 
 select pg_temp.login('00000000-0000-0000-0000-0000000008a1');
 set local role authenticated;
-select is((select platform_fee from public.quotes where id = pg_temp.id('q1')), 3975,
+select is((select platform_fee from public.quotes where id = pg_temp.id('q1')), 4274,
   'la cotización existente conserva su comisión tras el cambio de parámetros');
 select is((public.quote_visit('00000000-0000-0000-0000-00000000e0a1',
   '00000000-0000-0000-0000-00000000e1a1', pg_temp.spec('general'), 'scheduled',
-  '00000000-0000-0000-0000-0000000008b1') ->> 'platform_fee')::int, 5960,
-  'una cotización nueva usa la versión vigente (25.000 + 6 km × 800 = 29.800 × 20 % = 5.960)');
+  '00000000-0000-0000-0000-0000000008b1') ->> 'platform_fee')::int, 6358,
+  'una cotización nueva usa la versión vigente (26.990 + 6 km × 800 = 31.790 × 20 % = 6.358)');
 
 -- Pago simulado -----------------------------------------------------------------
-select is((public.simulate_payment(pg_temp.id('q1')) ->> 'platform_fee')::int, 3975,
+select is((public.simulate_payment(pg_temp.id('q1')) ->> 'platform_fee')::int, 4274,
   'el pago usa el precio congelado de la cotización');
 select is((select concat_ws(',', status, provider, service_price, platform_fee,
                             foundation_share, vet_payout, extra_donation, total, foundation_id)
            from public.payments where quote_id = pg_temp.id('q1')),
-  'simulated_paid,simulated,26500,3975,795,22525,1000,27500,00000000-0000-0000-0000-00000000f0a1',
+  'simulated_paid,simulated,28490,4274,855,24216,1000,29490,00000000-0000-0000-0000-00000000f0a1',
   'pago simulado con el reparto completo y la fundación de la cotización');
 select ok((select consumed_at is not null from public.quotes where id = pg_temp.id('q1')),
   'la cotización queda usada');
@@ -350,7 +361,7 @@ select is(
   (select string_agg(c.kind || ':' || c.amount, ' ' order by c.kind)
    from public.foundation_contributions c join public.payments p on p.id = c.payment_id
    where p.quote_id = pg_temp.id('q1')),
-  'commission_share:795 donation:1000', 'aportes: 20 % de la comisión + 100 % de la donación');
+  'commission_share:855 donation:1000', 'aportes: 20 % de la comisión + 100 % de la donación');
 select is(
   (select count(*)::int from public.foundation_contributions c
    join public.payments p on p.id = c.payment_id where p.status = 'simulated_failed'), 0,
@@ -407,10 +418,10 @@ select is((select count(*)::int from public.foundation_contributions), 0,
 select is((select count(*)::int from public.payment_events), 0, 'la fundación no ve eventos de pago');
 select is((select count(*)::int from public.owner_profiles), 0, 'la fundación no ve dueños');
 -- X recibió: q1 (795 + 1000) y q_urg (fundación Y del perfil no aplica: q_urg
--- se cotizó antes de elegir Y → X): comisión 32.500 × 15 % = 4.875 → 975.
+-- se cotizó antes de elegir Y → X): comisión 35.087 × 15 % = 5.263 → 1.053.
 select is(
   (select concat_ws(',', commission_total, donation_total, total) from public.foundation_summary()),
-  '1770,1000,2770', 'la fundación X ve sus totales del mes (comisión y donación)');
+  '1908,1000,2908', 'la fundación X ve sus totales del mes (comisión y donación)');
 select is((select count(*)::int from public.foundation_summary()), 1,
   'el resumen es una fila por mes, sin detalle de pagos');
 select is((select name from public.foundations where id = (select private.current_foundation_id())),

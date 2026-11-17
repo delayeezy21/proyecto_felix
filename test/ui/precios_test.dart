@@ -75,6 +75,24 @@ void main() {
       expect(_text(tester, const Key('quote-foundation')), contains(r'$3.125'));
     });
 
+    testWidgets(r'consulta general $26.990 hasta 5 km → vet $22.941', (
+      tester,
+    ) async {
+      // Montos tal como los devuelve quote_visit con la tarifa vigente.
+      await pumpBreakdown(
+        tester,
+        sampleQuote(base: 26990, fee: 4049, share: 810, distanceKm: 4.5),
+      );
+      expect(_text(tester, const Key('quote-total')), contains(r'$26.990'));
+      expect(_text(tester, const Key('quote-vet')), contains(r'$22.941'));
+      expect(_text(tester, const Key('quote-platform')), contains(r'$3.239'));
+      expect(_text(tester, const Key('quote-foundation')), contains(r'$810'));
+      expect(
+        _text(tester, const Key('quote-distance')),
+        contains('4,5 km, sin recargo'),
+      );
+    });
+
     testWidgets('distancia dentro de los km incluidos', (tester) async {
       await pumpBreakdown(tester, sampleQuote(distanceKm: 3.5));
       expect(

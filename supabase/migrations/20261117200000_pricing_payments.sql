@@ -20,6 +20,14 @@
 --   tope de cotizaciones por dueño y hora (advisory lock).
 
 -- ---------------------------------------------------------------------------
+-- Opción preparada (sin activar): que el recargo por distancia vaya 100 % al
+-- vet, sin comisión. `true` (por defecto) = comisión sobre todo el servicio.
+-- Se activa con una versión nueva de pricing_config. (El incentivo de $500
+-- por transferencia sigue sin definirse: no se modela.)
+alter table public.pricing_config
+  add column commission_on_distance boolean not null default true;
+
+-- ---------------------------------------------------------------------------
 -- Redondeo y desglose (funciones puras, sin EXECUTE para la app)
 -- ---------------------------------------------------------------------------
 create function private.clp_round(p numeric)
@@ -49,7 +57,8 @@ create function private.price_breakdown(
   p_free_km integer,
   p_discount_pct numeric default 0,
   p_waive_urgent boolean default false,
-  p_preventive_included boolean default false
+  p_preventive_included boolean default false,
+  p_commission_on_distance boolean default true
 )
 returns table (
   base_price integer,
@@ -86,7 +95,11 @@ as $$
            b.base - b.disc + b.urgent + b.km * p_per_km as service
     from b
   ), f as (
-    select s.*, private.clp_round(s.service * p_commission_pct / 100) as fee from s
+    -- Sin comisión sobre la distancia (opción), ese tramo va completo al vet.
+    select s.*, private.clp_round(
+             (s.service - case when p_commission_on_distance then 0 else s.dist end)
+             * p_commission_pct / 100) as fee
+    from s
   )
   select f.base, f.urgent, f.km, f.dist, f.disc, f.service, f.fee,
          private.clp_round(f.fee * p_foundation_pct / 100),
@@ -96,7 +109,7 @@ as $$
   from f;
 $$;
 revoke execute on function private.price_breakdown(integer, boolean, integer, integer,
-  numeric, numeric, numeric, integer, integer, numeric, boolean, boolean)
+  numeric, numeric, numeric, integer, integer, numeric, boolean, boolean, boolean)
   from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -537,7 +550,7 @@ begin
   from private.price_breakdown(
     v_base, p_mode = 'urgent', v_distance, coalesce(p_extra_donation, 0),
     v_cfg.commission_pct, v_cfg.foundation_pct, v_cfg.urgent_pct,
-    v_cfg.per_km, v_cfg.free_km) b
+    v_cfg.per_km, v_cfg.free_km, 0, false, false, v_cfg.commission_on_distance) b
   returning * into v_q;
 
   return v_q;

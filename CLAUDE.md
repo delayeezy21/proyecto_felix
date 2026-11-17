@@ -45,6 +45,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 
 ## Reglas de negocio (valores por defecto, configurables en `pricing_config`)
 - Comisión 15 % del servicio; 20 % de la comisión va a la fundación elegida (o a la por defecto). Donación extra: 100 % a la fundación.
+- Consulta general a domicilio: $26.990 todo incluido hasta 5 km (vet $22.941), en `tariffs` vía migración. Opción sin activar: `pricing_config.commission_on_distance = false` (recargo por km 100 % al vet).
 - Urgencia: radio 5 → 10 → 20 km, tandas de 3 vets × 60 s, máximo 10 min; si no hay vet, sin cobro y se ofrece agendar o ver clínicas 24 h.
 - Recargo de urgencia 30 % de la base; $500/km sobre 5 km.
 - Cancelación gratis hasta 2 h antes (agendada) o antes de "en camino" (urgente); después $5.000.

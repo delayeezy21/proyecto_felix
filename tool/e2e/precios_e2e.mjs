@@ -103,15 +103,15 @@ try {
   const q = await rpc('quote_visit', { p_pet_id: pet, p_address_id: addr, p_specialty_id: general,
     p_mode: 'scheduled', p_vet_id: vet.id, p_extra_donation: 1000 }, ownerA.token);
   const qj = q.json;
-  check(q.status === 200 && qj.base_price === 25000 && qj.billable_km === 3 && qj.distance_surcharge === 1500
-    && qj.service_price === 26500 && qj.platform_fee === 3975 && qj.foundation_share === 795
-    && qj.vet_payout === 22525 && qj.extra_donation === 1000 && qj.total === 27500,
-    `cotización correcta: 25.000 + 3 km (PostGIS) → total ${qj.total}`);
+  check(q.status === 200 && qj.base_price === 26990 && qj.billable_km === 3 && qj.distance_surcharge === 1500
+    && qj.service_price === 28490 && qj.platform_fee === 4274 && qj.foundation_share === 855
+    && qj.vet_payout === 24216 && qj.extra_donation === 1000 && qj.total === 29490,
+    `cotización correcta: consulta general 26.990 + 3 km (PostGIS) → total ${qj.total}`);
   check(qj.foundation_id === fX, 'sin elección, la cotización va a la fundación por defecto');
   check(qj.distance_km === 8, `el cliente ve la distancia redondeada a 0,5 km (${qj.distance_km})`);
 
   const urg = (await rpc('quote_visit', { p_pet_id: pet, p_address_id: addr, p_specialty_id: general, p_mode: 'urgent' }, ownerA.token)).json;
-  check(urg.urgent_surcharge === 7500 && urg.distance_km === null && urg.total === 32500,
+  check(urg.urgent_surcharge === 8097 && urg.distance_km === null && urg.total === 35087,
     'urgencia: recargo 30 % y distancia pendiente sin vet');
 
   // --- El cliente no puede manipular el precio --------------------------------------------
@@ -146,7 +146,7 @@ try {
 
   // --- Pago simulado -----------------------------------------------------------------------
   const pay = await rpc('simulate_payment', { p_quote_id: qj.quote_id }, ownerA.token);
-  check(pay.status === 200 && pay.json.status === 'simulated_paid' && pay.json.platform_fee === 3975 && pay.json.total === 27500,
+  check(pay.status === 200 && pay.json.status === 'simulated_paid' && pay.json.platform_fee === 4274 && pay.json.total === 29490,
     'el pago simulado usa el precio congelado aunque cambió la configuración');
   const again = await rpc('simulate_payment', { p_quote_id: qj.quote_id }, ownerA.token);
   check(again.status === 400, 'una cotización no se paga dos veces');
@@ -176,8 +176,8 @@ try {
   check(ownersX.json.length === 0, 'la fundación no ve datos de dueños');
   const sumX = await rpc('foundation_summary', {}, fundX.token);
   const m = sumX.json[0] ?? {};
-  check(sumX.status === 200 && sumX.json.length === 1 && m.commission_total === 795 && m.donation_total === 1000 && m.total === 1795,
-    `la fundación X ve su total del mes: comisión 795 + donación 1.000 (${JSON.stringify(sumX.json)})`);
+  check(sumX.status === 200 && sumX.json.length === 1 && m.commission_total === 855 && m.donation_total === 1000 && m.total === 1855,
+    `la fundación X ve su total del mes: comisión 855 + donación 1.000 (${JSON.stringify(sumX.json)})`);
   check(Object.keys(m).sort().join(',') === 'commission_total,donation_total,month,total',
     'el resumen solo trae mes y montos (sin dueños ni pagos)');
   const sumY = await rpc('foundation_summary', {}, fundY.token);
@@ -190,8 +190,8 @@ try {
     prefer: 'return=representation', body: { foundation_id: fY } });
   check(choose.status === 200 && choose.json[0]?.foundation_id === fY, 'el dueño A elige la fundación Y en su perfil');
   const qY = (await rpc('quote_visit', { p_pet_id: pet, p_address_id: addr, p_specialty_id: general, p_mode: 'scheduled' }, ownerA.token)).json;
-  check(qY.foundation_id === fY && qY.platform_fee === 5000,
-    `la nueva cotización va a Y y usa la versión vigente (25.000 × 20 % = ${qY.platform_fee})`);
+  check(qY.foundation_id === fY && qY.platform_fee === 5398,
+    `la nueva cotización va a Y y usa la versión vigente (26.990 × 20 % = ${qY.platform_fee})`);
 
   // --- Admin ---------------------------------------------------------------------------------------
   const admPays = await call('/rest/v1/payments?select=id', { token: admin.token });
