@@ -172,7 +172,7 @@ void main() {
           isNull,
           reason: 'en pantalla dice 19 (inválido) y se enviaría 2015',
         );
-      }, skip: true); // QA-17 abierto: quitar al corregir.
+      });
 
       testWidgets('con una edición hecha durante un guardado en curso', (
         tester,
@@ -193,7 +193,7 @@ void main() {
         );
         await tester.pump(const Duration(seconds: 3));
         await tester.pumpAndSettle();
-      }, skip: true); // QA-17 abierto: quitar al corregir.
+      });
     },
   );
 

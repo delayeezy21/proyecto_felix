@@ -239,81 +239,113 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
     super.dispose();
   }
 
-  bool get _dirty {
-    final p = widget.profile;
-    String norm(String? v) => v?.trim() ?? '';
-    return norm(_bio.text) != norm(p.bio) ||
-        (p.canEditProfessionalData &&
-            (norm(_university.text) != norm(p.university) ||
-                norm(_year.text) != (p.graduationYear?.toString() ?? '') ||
-                norm(_code.text) != norm(p.titleVerificationCode) ||
-                _foreign != p.foreignDegree));
-  }
+  /// Lo último que efectivamente quedó guardado en la BD. La pantalla se
+  /// compara contra esto (no contra el perfil, que se recarga después).
+  late _Snapshot _persisted = _Snapshot.fromProfile(widget.profile);
+
+  /// Guardados en curso (puede haber más de uno si el vet sigue editando).
+  int _inFlight = 0;
+
+  _Snapshot get _current => _Snapshot(
+    bio: _bio.text,
+    university: _university.text,
+    year: _year.text,
+    code: _code.text,
+    foreign: _foreign,
+  );
+
+  bool get _dirty => !_current.sameAs(
+    _persisted,
+    professional: widget.profile.canEditProfessionalData,
+  );
 
   bool get _silentlyValid =>
       !widget.profile.canEditProfessionalData ||
       (_university.text.trim().length >= 3 &&
           _validateYear(_year.text) == null);
 
-  void _setPendingFlag({required bool pending}) {
+  /// El envío queda bloqueado mientras lo que se ve no esté guardado: cambios
+  /// sin guardar (incluso inválidos), un guardado programado o en curso
+  /// (QA-15 y QA-17).
+  void _refreshPendingFlag() {
+    if (!mounted) return;
+    final pending = _dirty || _inFlight > 0 || (_debounce?.isActive ?? false);
     final notifier = ref.read(vetDataDirtyProvider.notifier);
     if (notifier.dirty != pending) notifier.dirty = pending;
   }
 
   void _onEdited() {
     if (!_dirty) {
-      // Volvió al valor guardado: nada pendiente (QA-15).
       _debounce?.cancel();
-      _setPendingFlag(pending: false);
-      if (_saveState != _SaveState.saved) {
+      if (_inFlight == 0 && _saveState != _SaveState.saved) {
         setState(() => _saveState = _SaveState.saved);
       }
+      _refreshPendingFlag();
       return;
     }
     setState(() => _saveState = _SaveState.pending);
-    _setPendingFlag(pending: true);
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 900), _autoSave);
+    _refreshPendingFlag();
   }
 
   Future<void> _autoSave() async {
     if (!mounted) return;
-    // El aviso "Guardando…" se apaga siempre al terminar, aunque no se haya
-    // guardado nada (sin cambios, dato inválido o error). QA-15.
     if (!_dirty) {
-      _setPendingFlag(pending: false);
-      setState(() => _saveState = _SaveState.saved);
+      if (_inFlight == 0) setState(() => _saveState = _SaveState.saved);
+      _refreshPendingFlag();
       return;
     }
     if (!_silentlyValid) {
-      _setPendingFlag(pending: false);
+      // No se guarda y el envío sigue bloqueado: en pantalla hay un dato
+      // inválido distinto de lo guardado (QA-17).
       setState(() => _saveState = _SaveState.invalid);
+      _refreshPendingFlag();
       return;
     }
+    await _persistTracked();
+  }
+
+  /// Guarda lo que hay en pantalla y actualiza la instantánea si sale bien.
+  Future<bool> _persistTracked({bool rethrowErrors = false}) async {
+    final sent = _current;
+    _inFlight++;
     setState(() => _saveState = _SaveState.saving);
+    _refreshPendingFlag();
     try {
-      await _persist();
-      if (!mounted) return;
-      setState(() => _saveState = _SaveState.saved);
+      await _persist(sent);
+      if (!mounted) return true;
+      _persisted = sent;
       ref.invalidate(vetProfileProvider);
+      return true;
     } on Object {
       if (mounted) setState(() => _saveState = _SaveState.error);
+      if (rethrowErrors) rethrow;
+      return false;
     } finally {
-      if (mounted) _setPendingFlag(pending: false);
+      _inFlight--;
+      if (mounted) {
+        if (_inFlight == 0 && _saveState != _SaveState.error) {
+          setState(
+            () => _saveState = _dirty ? _SaveState.pending : _SaveState.saved,
+          );
+        }
+        _refreshPendingFlag();
+      }
     }
   }
 
-  Future<void> _persist() {
+  Future<void> _persist(_Snapshot s) {
     final repo = ref.read(vetRepositoryProvider);
     return widget.profile.canEditProfessionalData
         ? repo.updateProfessionalData(
-            bio: _bio.text,
-            university: _university.text,
-            graduationYear: int.tryParse(_year.text),
-            foreignDegree: _foreign,
-            titleVerificationCode: _code.text,
+            bio: s.bio,
+            university: s.university,
+            graduationYear: int.tryParse(s.year),
+            foreignDegree: s.foreign,
+            titleVerificationCode: s.code,
           )
-        : repo.updateBio(_bio.text);
+        : repo.updateBio(s.bio);
   }
 
   String? _validateYear(String? v) {
@@ -328,19 +360,12 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
     if (editable && !(_formKey.currentState?.validate() ?? false)) return;
     _debounce?.cancel();
     setState(() => _saving = true);
-    final ok = await runWithFeedback(
+    await runWithFeedback(
       context,
-      _persist,
-      onDone: () => ref.invalidate(vetProfileProvider),
+      () => _persistTracked(rethrowErrors: true),
       success: 'Datos guardados',
     );
-    if (mounted) {
-      setState(() {
-        _saving = false;
-        _saveState = ok ? _SaveState.saved : _SaveState.error;
-      });
-      if (ok) ref.read(vetDataDirtyProvider.notifier).dirty = false;
-    }
+    if (mounted) setState(() => _saving = false);
   }
 
   Widget _saveIndicator(BuildContext context) {
@@ -877,7 +902,7 @@ class _SubmitCard extends ConsumerWidget {
           const SizedBox(height: 8),
           if (savingData) ...[
             const Text(
-              'Guardando tus datos profesionales…',
+              'Tus datos profesionales tienen cambios sin guardar…',
               key: Key('vet-saving-before-submit'),
             ),
             const SizedBox(height: 8),
@@ -909,5 +934,40 @@ class _SubmitCard extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// Valores editables de los datos profesionales (para comparar pantalla y BD).
+class _Snapshot {
+  const new({
+    required this.bio,
+    required this.university,
+    required this.year,
+    required this.code,
+    required this.foreign,
+  });
+
+  factory fromProfile(VetProfile p) => _Snapshot(
+    bio: p.bio ?? '',
+    university: p.university ?? '',
+    year: p.graduationYear?.toString() ?? '',
+    code: p.titleVerificationCode ?? '',
+    foreign: p.foreignDegree,
+  );
+
+  final String bio;
+  final String university;
+  final String year;
+  final String code;
+  final bool foreign;
+
+  bool sameAs(_Snapshot o, {required bool professional}) {
+    String n(String v) => v.trim();
+    if (n(bio) != n(o.bio)) return false;
+    if (!professional) return true;
+    return n(university) == n(o.university) &&
+        n(year) == n(o.year) &&
+        n(code) == n(o.code) &&
+        foreign == o.foreign;
   }
 }
