@@ -62,11 +62,18 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!p || p.status !== 'pending' || !p.submitted_at) return json({ error: 'not_in_review' }, 409);
 
-  const { data: quota, error: quotaError } = await db.rpc('title_verification_quota', { p_vet_id: vetId }).single();
+  const cfg = readConfig((k) => Deno.env.get(k));
+
+  // Reserva atómica del cupo (QA-19), con cupos separados para vet y admin (QA-20).
+  const { data: quota, error: quotaError } = await db
+    .rpc('reserve_title_verification', {
+      p_vet_id: vetId,
+      p_by_admin: trigger === 'admin',
+      p_colmevet: cfg.mode === 'colmevet',
+    })
+    .single();
   if (quotaError || !quota) return json({ error: 'quota_failed' }, 500);
   if (!quota.vet_ok) return json({ error: 'rate_limited' }, 429);
-
-  const cfg = readConfig((k) => Deno.env.get(k));
   const results: TitleVerificationResult[] = await runVerification(
     {
       displayName: p.display_name ?? '',

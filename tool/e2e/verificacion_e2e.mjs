@@ -127,9 +127,13 @@ try {
   const adminRows = await call(`/rest/v1/vet_title_verifications?select=run_trigger,requested_by&vet_id=eq.${vet.id}&run_trigger=eq.admin`, { token: admin.token });
   check(adminRows.json.length === 2 && adminRows.json.every((r) => r.requested_by === admin.id),
     'queda registrado quién la ejecutó (admin)');
-  const a2 = await verify(admin.token, { vet_id: vet.id });
-  const a3 = await verify(admin.token, { vet_id: vet.id });
-  check(a2.status === 200 && a3.status === 429, `límite: 3 ejecuciones por vet cada 10 min (HTTP ${a2.status}, ${a3.status})`);
+  // QA-20: el admin tiene su propio cupo (10 cada 10 min por solicitud),
+  // independiente del cupo del vet (3 cada 10 min).
+  const adminRuns = [];
+  for (let i = 0; i < 9; i++) adminRuns.push((await verify(admin.token, { vet_id: vet.id })).status);
+  const aOver = await verify(admin.token, { vet_id: vet.id });
+  check(adminRuns.every((s) => s === 200) && aOver.status === 429,
+    `límite del admin: 10 ejecuciones por solicitud cada 10 min (11.ª → HTTP ${aOver.status})`);
 
   // --- Un proveedor que falla no rompe nada ------------------------------------------------
   const f = await verify(admin.token, { vet_id: failing.id });

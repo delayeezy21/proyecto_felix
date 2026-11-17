@@ -435,7 +435,14 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
                         title: Text(c.$3 ? c.$2 : '${c.$2} (opcional)'),
                         subtitle: _suggested.contains(c.$1)
                             ? Text(
-                                'Sugerido por la verificación automática',
+                                c.$3
+                                    // Chequeo obligatorio premarcado: la
+                                    // decisión sigue siendo del admin.
+                                    ? 'Sugerido por la verificación '
+                                          'automática: confírmalo tú antes '
+                                          'de aprobar'
+                                    : 'Sugerido por la verificación '
+                                          'automática',
                                 key: Key('suggested-${c.$1}'),
                               )
                             : null,

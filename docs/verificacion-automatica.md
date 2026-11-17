@@ -75,7 +75,7 @@ URL: `https://intranet.colegioveterinario.cl/publico/colegiados`. Solo inspeccio
 - Migración `title_verifications`:
   - Tabla `public.vet_title_verifications`, de solo inserción, con RLS forzada. El vet lee las suyas y el admin todas. Solo `service_role` inserta y nadie borra.
   - Evidencia mínima: `matches` y estado HTTP, sin nombres ni RUT.
-  - Cuota `title_verification_quota` (solo `service_role`).
+  - Cuota `reserve_title_verification` (solo `service_role`): reserva atómica, cupos separados para vet (3/10 min) y admin (10/10 min); COLMEVET 20/min.
 - Edge Function `verify-vet-title`:
   - Interfaz `TitleVerificationProvider` (`providers.ts`), con las implementaciones `RulesProvider`, `ColmevetProvider` y `FakeProvider`.
   - Configuración por `TITLE_VERIFICATION_PROVIDER` = `off` (por defecto) | `fake` | `colmevet`.

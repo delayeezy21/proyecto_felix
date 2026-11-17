@@ -133,7 +133,7 @@ try {
   check(upd.status === 401 || upd.status === 403, 'nadie modifica resultados');
   const anonRead = await rest('vet_title_verifications?select=id&limit=1');
   check(anonRead.status === 401 || (anonRead.status === 200 && anonRead.json.length === 0), 'anónimo no lee resultados');
-  const quota = await rpc('title_verification_quota', vet.token, { p_vet_id: vet.id });
+  const quota = await rpc('reserve_title_verification', vet.token, { p_vet_id: vet.id, p_by_admin: false, p_colmevet: false });
   check(quota.status >= 400, 'un usuario no consulta la cuota');
   const bigEvidence = await rest('vet_title_verifications', { method: 'POST', key: SRV, token: SRV, body: {
     vet_id: vet.id, source: 'rules', outcome: 'match', evidence: { x: 'a'.repeat(2000) },

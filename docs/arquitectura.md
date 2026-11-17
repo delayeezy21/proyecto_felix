@@ -306,7 +306,7 @@ Implementación:
   - Solo inserción vía `service_role`. El vet lee las suyas y el admin todas; nadie las borra.
   - Los proveedores solo pueden sugerir `university` y `colmevet`: `name` y `code` los confirma siempre una persona.
   - Evidencia mínima, sin nombres ni datos de terceros.
-- **Cuota** `title_verification_quota` (solo `service_role`): 3 ejecuciones por vet cada 10 min y 20 consultas a COLMEVET por minuto.
+- **Cuota** `reserve_title_verification` (solo `service_role`): reserva **atómica** con advisory lock (QA-19), con cupos separados (QA-20): vet 3 ejecuciones cada 10 min, admin 10 por solicitud cada 10 min, y 20 consultas a COLMEVET por minuto en total.
 - **Revisión del admin**: muestra la fuente, el resultado, el riesgo y la fecha de la ronda actual. Precompleta los chequeos sugeridos (se pueden desmarcar) y agrega una línea de resumen a `review_notes`. Si la verificación falla o está apagada, el flujo manual no cambia.
 - **Pendiente de decisión del usuario**:
   - Activar COLMEVET (pedir antes autorización y actualizar la política de privacidad).

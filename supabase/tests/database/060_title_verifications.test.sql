@@ -2,7 +2,7 @@
 -- tabla de resultados de solo inserción vía service_role, lectura propia o del
 -- admin, cuota de ejecuciones.
 begin;
-select plan(20);
+select plan(21);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000006b1', 'qa6-vet@test.local'),
@@ -40,10 +40,10 @@ select ok(has_table_privilege('service_role', 'public.vet_title_verifications', 
       and not has_table_privilege('service_role', 'public.vet_title_verifications', 'update')
       and not has_table_privilege('service_role', 'public.vet_title_verifications', 'delete'),
   'service_role solo inserta (resultados inmutables)');
-select ok(not has_function_privilege('authenticated', 'public.title_verification_quota(uuid)', 'execute')
-      and not has_function_privilege('anon', 'public.title_verification_quota(uuid)', 'execute')
-      and has_function_privilege('service_role', 'public.title_verification_quota(uuid)', 'execute'),
-  'la cuota solo la ejecuta service_role');
+select ok(not has_function_privilege('authenticated', 'public.reserve_title_verification(uuid, boolean, boolean)', 'execute')
+      and not has_function_privilege('anon', 'public.reserve_title_verification(uuid, boolean, boolean)', 'execute')
+      and has_function_privilege('service_role', 'public.reserve_title_verification(uuid, boolean, boolean)', 'execute'),
+  'la reserva de cuota solo la ejecuta service_role');
 
 -- Restricciones de minimización ------------------------------------------------
 set local role service_role;
@@ -79,14 +79,19 @@ select throws_ok(
 select throws_ok(
   $$ update public.vet_title_verifications set outcome = 'no_match' $$,
   '42501', null, 'service_role no modifica resultados');
-select is((select count(*)::int from public.title_verification_quota('00000000-0000-0000-0000-0000000006b1')
-           where vet_ok and colmevet_ok), 1, 'con 1 ejecución reciente hay cuota');
+-- QA-19/QA-20: reserva atómica con cupos separados para vet y admin.
+select is((select count(*)::int from (
+    select (public.reserve_title_verification('00000000-0000-0000-0000-0000000006b1', false, false)).vet_ok
+    from generate_series(1, 3)) r(ok) where ok), 3,
+  'el vet reserva hasta 3 verificaciones en 10 minutos');
 insert into public.vet_title_verifications (vet_id, source, outcome, risk, run_trigger, provider_version)
   values ('00000000-0000-0000-0000-0000000006b1', 'rules', 'match', 'low', 'admin', 'rules-1'),
          ('00000000-0000-0000-0000-0000000006b1', 'rules', 'match', 'low', 'admin', 'rules-1');
-select is((select vet_ok from public.title_verification_quota('00000000-0000-0000-0000-0000000006b1')),
-  false, 'cuota por vet: máximo 3 ejecuciones cada 10 minutos');
-select is((select vet_ok from public.title_verification_quota('00000000-0000-0000-0000-0000000006b2')),
+select is((select vet_ok from public.reserve_title_verification('00000000-0000-0000-0000-0000000006b1', false, false)),
+  false, 'la 4.ª reserva del vet se rechaza (cuota por vet: 3 cada 10 minutos)');
+select is((select vet_ok from public.reserve_title_verification('00000000-0000-0000-0000-0000000006b1', true, false)),
+  true, 'QA-20: el admin tiene su propio cupo aunque el vet agotó el suyo');
+select is((select vet_ok from public.reserve_title_verification('00000000-0000-0000-0000-0000000006b2', false, false)),
   true, 'la cuota es por vet');
 reset role;
 
