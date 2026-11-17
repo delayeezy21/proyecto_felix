@@ -7,6 +7,10 @@ abstract final class AppRoutes {
   static const signUp = '/signup';
   static const onboarding = '/onboarding';
   static const owner = '/owner';
+  static const ownerPetNew = '/owner/pets/new';
+  static const ownerAddressNew = '/owner/addresses/new';
+  static String ownerPet(String id) => '/owner/pets/$id';
+  static String ownerAddress(String id) => '/owner/addresses/$id';
   static const vet = '/vet';
   static const vetPending = '/vet/pending';
   static const admin = '/admin';

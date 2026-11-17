@@ -1,4 +1,5 @@
 import 'package:proyecto_felix/domain/models/catalog.dart';
+import 'package:proyecto_felix/domain/models/pet.dart' show Breed;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class CatalogFailure implements Exception {
@@ -14,6 +15,9 @@ abstract interface class CatalogRepository {
   Future<List<Region>> regions();
 
   Future<List<Commune>> communes(int regionId);
+
+  /// Razas activas de una especie (puede no tener ninguna).
+  Future<List<Breed>> breeds(int speciesId);
 
   /// Para el admin incluye los inactivos (la RLS decide qué se ve).
   Future<List<CatalogItem>> items(CatalogKind kind);
@@ -71,6 +75,24 @@ class SupabaseCatalogRepository implements CatalogRepository {
         Commune(
           id: r['id'] as int,
           regionId: r['region_id'] as int,
+          name: r['name'] as String,
+        ),
+    ];
+  });
+
+  @override
+  Future<List<Breed>> breeds(int speciesId) => _guard(() async {
+    final rows = await _client
+        .from('breeds')
+        .select('id, species_id, name')
+        .eq('species_id', speciesId)
+        .eq('active', true)
+        .order('name');
+    return [
+      for (final r in rows)
+        Breed(
+          id: r['id'] as int,
+          speciesId: r['species_id'] as int,
           name: r['name'] as String,
         ),
     ];

@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/app.dart';
 import 'package:proyecto_felix/core/config/env.dart';
 import 'package:proyecto_felix/core/config/env_provider.dart';
+import 'package:proyecto_felix/data/maps/geocoding_adapter.dart';
+import 'package:proyecto_felix/data/maps/map_adapter.dart';
+import 'package:proyecto_felix/data/maps/maps_providers.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
@@ -13,7 +16,12 @@ import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
+import 'package:proyecto_felix/domain/models/pet.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
+
+import 'owner_fakes.dart';
+
+export 'owner_fakes.dart';
 
 const configuredEnv = Env(
   supabaseUrl: 'http://127.0.0.1:54321',
@@ -173,6 +181,10 @@ Widget testApp({
   FakeVetRepository? vets,
   FakeDocumentPicker? picker,
   FakeUrlOpener? opener,
+  FakePetRepository? pets,
+  FakeAddressRepository? addresses,
+  GeocodingAdapter? geocoder,
+  MapAdapter? map,
   Env env = configuredEnv,
 }) => ProviderScope(
   overrides: [
@@ -185,6 +197,14 @@ Widget testApp({
     vetRepositoryProvider.overrideWithValue(vets ?? FakeVetRepository()),
     documentPickerProvider.overrideWithValue(picker ?? FakeDocumentPicker()),
     urlOpenerProvider.overrideWithValue(opener ?? FakeUrlOpener()),
+    petRepositoryProvider.overrideWithValue(pets ?? FakePetRepository()),
+    addressRepositoryProvider.overrideWithValue(
+      addresses ?? FakeAddressRepository(),
+    ),
+    geocodingAdapterProvider.overrideWithValue(
+      geocoder ?? FakeGeocodingAdapter(),
+    ),
+    mapAdapterProvider.overrideWithValue(map ?? FakeMapAdapter()),
   ],
   child: const FelixApp(),
 );
@@ -248,6 +268,16 @@ class FakeCatalogRepository implements CatalogRepository {
   @override
   Future<List<Commune>> communes(int regionId) async =>
       communeList.where((c) => c.regionId == regionId).toList();
+
+  final breedList = const [
+    Breed(id: 11, speciesId: 1, name: 'Beagle'),
+    Breed(id: 12, speciesId: 1, name: 'Mestizo'),
+    Breed(id: 21, speciesId: 2, name: 'Siamés'),
+  ];
+
+  @override
+  Future<List<Breed>> breeds(int speciesId) async =>
+      breedList.where((b) => b.speciesId == speciesId).toList();
 
   @override
   Future<List<CatalogItem>> items(CatalogKind kind) async =>

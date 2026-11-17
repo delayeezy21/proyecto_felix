@@ -42,10 +42,30 @@ void main() {
       expect(google.effectiveMapProvider(AppPlatform.windows), MapProvider.osm);
     });
 
-    test('Android, iOS y Web usan Google si hay API key', () {
-      for (final p in [AppPlatform.android, AppPlatform.ios, AppPlatform.web]) {
+    test('Android y Web usan Google si hay API key', () {
+      for (final p in [AppPlatform.android, AppPlatform.web]) {
         expect(google.effectiveMapProvider(p), MapProvider.google);
       }
+    });
+
+    test('iOS usa OSM hasta configurar la clave nativa en un Mac', () {
+      expect(google.effectiveMapProvider(AppPlatform.ios), MapProvider.osm);
+    });
+
+    test('el geocoding en Web usa Nominatim aunque el mapa sea Google', () {
+      expect(
+        google.effectiveGeocodingProvider(AppPlatform.web),
+        MapProvider.osm,
+      );
+      expect(
+        google.effectiveGeocodingProvider(AppPlatform.android),
+        MapProvider.google,
+      );
+    });
+
+    test('los tiles y Nominatim tienen valores por defecto', () {
+      expect(google.osmTileUrl, contains('{z}/{x}/{y}'));
+      expect(google.nominatimUrl, startsWith('https://'));
     });
 
     test('Google sin API key cae a OSM', () {

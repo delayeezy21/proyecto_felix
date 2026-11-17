@@ -12,6 +12,9 @@ import 'package:proyecto_felix/ui/features/home/views/role_home_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/session_error_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/splash_view.dart';
 import 'package:proyecto_felix/ui/features/onboarding/views/onboarding_view.dart';
+import 'package:proyecto_felix/ui/features/owner/views/address_form_view.dart';
+import 'package:proyecto_felix/ui/features/owner/views/owner_home_view.dart';
+import 'package:proyecto_felix/ui/features/owner/views/pet_form_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_profile_view.dart';
 
 /// Router con protección por sesión y rol (ver `AppRoutes.redirect`).
@@ -55,10 +58,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.owner,
-        builder: (context, state) => const RoleHomeView(
-          title: 'Inicio',
-          message: 'Aquí podrás registrar tus mascotas y pedir visitas.',
-        ),
+        builder: (context, state) => const OwnerHomeView(),
+        routes: [
+          GoRoute(
+            path: 'pets/new',
+            builder: (context, state) => const PetFormView(),
+          ),
+          GoRoute(
+            path: 'pets/:id',
+            builder: (context, state) =>
+                PetFormView(petId: state.pathParameters['id']),
+          ),
+          GoRoute(
+            path: 'addresses/new',
+            builder: (context, state) => const AddressFormView(),
+          ),
+          GoRoute(
+            path: 'addresses/:id',
+            builder: (context, state) =>
+                AddressFormView(addressId: state.pathParameters['id']),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.vet,

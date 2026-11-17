@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:proyecto_felix/data/maps/geocoding_adapter.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
+import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 
 /// Mensaje legible de los errores de repositorios.
 String friendlyError(Object error) => switch (error) {
   VetFailure(:final message) => message,
   CatalogFailure(:final message) => message,
+  OwnerDataFailure(:final message) => message,
+  GeocodingFailure(:final message) => message,
   _ => 'No se pudo completar la acción. Inténtalo de nuevo.',
 };
 

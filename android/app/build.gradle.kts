@@ -4,6 +4,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+fun dartDefine(name: String): String =
+    (project.findProperty("dart-defines") as String?)
+        ?.split(",")
+        ?.map { String(java.util.Base64.getDecoder().decode(it), Charsets.UTF_8) }
+        ?.firstOrNull { it.startsWith("$name=") }
+        ?.substringAfter("=")
+        ?: ""
+
 android {
     namespace = "cl.proyectofelix.proyecto_felix"
     compileSdk = flutter.compileSdkVersion
@@ -27,6 +35,10 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // MAPS_API_KEY llega por --dart-define(-from-file); Flutter se los pasa
+        // a Gradle en base64 en la propiedad "dart-defines". Sin clave, la
+        // app usa OSM (Env.effectiveMapProvider).
+        manifestPlaceholders["mapsApiKey"] = dartDefine("MAPS_API_KEY")
     }
 
     buildTypes {
