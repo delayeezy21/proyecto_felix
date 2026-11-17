@@ -156,6 +156,54 @@ try {
   // Deja A con solo la dirección base activa.
   for (const r of [mendoza, mismatch]) if (r.status === 201) await rest(`addresses?id=eq.${r.json[0].id}`, { method: 'PATCH', token: a.token, body: { active: false } });
 
+  // ---- QA 2d5467d: intentos de saltar la validación comuna/punto ---------------------------
+  const valpo = await communeId('Valparaíso');
+  const nuevo = await addrTry(-33.4569, -70.5974);
+  check(nuevo.status === 201, 'una dirección coherente (Ñuñoa) se acepta');
+  const nid = nuevo.json[0]?.id;
+  const onlyCommune = await rest(`addresses?id=eq.${nid}`, { method: 'PATCH', token: a.token, body: { commune_id: arica } });
+  check(onlyCommune.status === 400, `PATCH solo de commune_id a Arica se rechaza (HTTP ${onlyCommune.status})`);
+  const onlyLat = await rest(`addresses?id=eq.${nid}`, { method: 'PATCH', token: a.token, body: { lat: -18.4783 } });
+  check(onlyLat.status === 400, `PATCH solo de lat hacia Arica se rechaza (HTTP ${onlyLat.status})`);
+  const onlyLng = await rest(`addresses?id=eq.${nid}`, { method: 'PATCH', token: a.token, body: { lng: -69.0 } });
+  check(onlyLng.status === 400, `PATCH solo de lng hacia la cordillera/Argentina se rechaza (HTTP ${onlyLng.status})`);
+  const both = await rest(`addresses?id=eq.${nid}`, { method: 'PATCH', token: a.token, prefer: 'return=representation',
+    body: { commune_id: valpo, lat: -33.0458, lng: -71.6197 } });
+  check(both.status === 200 && both.json[0]?.commune_id === valpo, 'mudar comuna y punto juntos de forma coherente se acepta');
+  const sea = await rest(`addresses?id=eq.${nid}`, { method: 'PATCH', token: a.token, body: { lat: -33.03, lng: -71.85 } });
+  check(sea.status === 400, `punto en el mar a ~20 km de Valparaíso se rechaza (HTTP ${sea.status})`);
+  check((await addrTry(-18.0146, -70.2536, { commune_id: arica })).status === 400, 'Tacna (Perú) con comuna Arica se rechaza');
+  check((await addrTry(-54.8019, -68.303)).status === 400, 'Ushuaia (Argentina) se rechaza');
+  check((await addrTry(-30.0, -80.0)).status === 400, 'Pacífico abierto se rechaza');
+  const batchMix = await rest('addresses', { method: 'POST', token: a.token, body: [
+    { owner_id: a.id, label: 'Ok', street_text: 'Calle ok', commune_id: nunoa, lat: -33.4569, lng: -70.5974 },
+    { owner_id: a.id, label: 'Mala', street_text: 'Calle mala', commune_id: arica, lat: -33.4569, lng: -70.5974 }] });
+  const afterBatch = (await rest('addresses?select=id&label=in.(Ok,Mala)', { token: a.token })).json.length;
+  check(batchMix.status === 400 && afterBatch === 0, `batch con una fila incoherente se rechaza completo (HTTP ${batchMix.status}, filas ${afterBatch})`);
+  const upd = await rest(`addresses?owner_id=eq.${a.id}`, { method: 'PATCH', token: a.token, body: { commune_id: arica } });
+  check(upd.status === 400, `PATCH masivo de commune_id sobre todas las direcciones se rechaza (HTTP ${upd.status})`);
+  await rest(`addresses?id=eq.${nid}`, { method: 'PATCH', token: a.token, body: { active: false } });
+
+  // communes_at_point y commune_boundaries
+  const capAnon = await rpc('communes_at_point', undefined, { p_lat: -33.4569, p_lng: -70.5974 });
+  check(capAnon.status === 401, `communes_at_point sin sesión se rechaza (HTTP ${capAnon.status})`);
+  const cap = await rpc('communes_at_point', a.token, { p_lat: -33.4569, p_lng: -70.5974 });
+  check(cap.status === 200 && cap.json[0]?.name === 'Ñuñoa', `communes_at_point propone Ñuñoa primero (${cap.json[0]?.name})`);
+  const capNaN = await rpc('communes_at_point', a.token, { p_lat: 'NaN', p_lng: -70.6 });
+  check(capNaN.status < 500, `communes_at_point con NaN no provoca 5xx (HTTP ${capNaN.status})`);
+  const cbAnon = await rest('commune_boundaries?select=commune_id&limit=1');
+  check(cbAnon.status === 401, `commune_boundaries no es legible sin sesión (HTTP ${cbAnon.status})`);
+  const cbRead = await rest('commune_boundaries?select=commune_id,center_lat&limit=1', { token: a.token });
+  check(cbRead.status === 200 && cbRead.json.length === 1, 'un usuario autenticado lee commune_boundaries');
+  for (const [who, tok] of [['dueño', a.token], ['admin', admin.token]]) {
+    const ins = await rest('commune_boundaries', { method: 'POST', token: tok,
+      body: { commune_id: arica, center_lat: -18.4, center_lng: -70.3, area: 'SRID=4326;MULTIPOLYGON(((-71 -34,-70 -34,-70 -33,-71 -34)))' } });
+    const up = await rest(`commune_boundaries?commune_id=eq.${arica}`, { method: 'PATCH', token: tok, body: { center_lat: -33.4 } });
+    const de = await rest(`commune_boundaries?commune_id=eq.${arica}`, { method: 'DELETE', token: tok });
+    check(ins.status === 403 && up.status === 403 && de.status === 403,
+      `${who} no escribe commune_boundaries (POST ${ins.status}, PATCH ${up.status}, DELETE ${de.status})`);
+  }
+
   // ---- Topes en concurrencia -----------------------------------------------------------------
   const c = await newUser('conc');
   await register(c, 'owner', nunoa);
