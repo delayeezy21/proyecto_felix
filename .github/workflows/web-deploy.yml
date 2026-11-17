@@ -67,6 +67,8 @@ jobs:
           MAP_PROVIDER: ${{ vars.MAP_PROVIDER || 'osm' }}
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY_WEB }}
           GOOGLE_AUTH_ENABLED: ${{ vars.GOOGLE_AUTH_ENABLED || 'false' }}
+          # Solo si la API usa un dominio propio en vez de *.supabase.co (QA-31).
+          FELIX_ALLOWED_API_HOSTS: ${{ vars.FELIX_ALLOWED_API_HOSTS }}
         run: |
           umask 077
           {

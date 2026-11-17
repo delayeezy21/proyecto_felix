@@ -28,7 +28,11 @@ for (const raw of readFileSync(file, 'utf8').split(/\r?\n/)) {
 
 // Texto crudo de todo el archivo: los secretos se buscan también ahí, por si
 // el parser no entendiera alguna línea (comillas raras, espacios, etc.).
-const rawText = readFileSync(file, 'utf8');
+// Sin las líneas de comentario: la plantilla dice "Nunca sb_secret_..." (QA-30).
+const rawText = readFileSync(file, 'utf8')
+  .split(/\r?\n/)
+  .filter((l) => !l.trim().startsWith('#'))
+  .join('\n');
 
 const errors = [];
 const appEnv = (env.APP_ENV || 'local').toLowerCase();
@@ -81,7 +85,25 @@ if (url && appEnv !== 'local') {
   if (url.protocol !== 'https:') errors.push(`SUPABASE_URL debe ser https en ${appEnv}`);
   if (isLocalOrPrivateHost(url.hostname)) {
     errors.push(`SUPABASE_URL apunta a un host local o privado en ${appEnv}`);
+  } else if (!isAllowedHost(url.hostname)) {
+    errors.push(
+      `SUPABASE_URL debe ser *.supabase.co o un dominio listado en FELIX_ALLOWED_API_HOSTS (${appEnv})`,
+    );
   }
+}
+
+// Lista de hosts permitidos (QA-31): cierra los nombres DNS que resuelven a
+// loopback (nip.io, localtest.me) y las IPv6 con IPv4 embebida. Un dominio
+// propio se habilita con la variable de entorno del proceso (no del archivo):
+//   FELIX_ALLOWED_API_HOSTS=api.felix.cl node tool/env/validar_env.mjs .env.prod
+function isAllowedHost(hostname) {
+  const h = hostname.toLowerCase().replace(/\.+$/, '');
+  if (/^[a-z0-9-]+\.supabase\.co$/.test(h)) return true;
+  const extra = (process.env.FELIX_ALLOWED_API_HOSTS ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return extra.includes(h);
 }
 
 if (env.MAP_PROVIDER && !['google', 'osm'].includes(env.MAP_PROVIDER.toLowerCase())) {

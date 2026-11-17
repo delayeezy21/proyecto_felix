@@ -23,10 +23,12 @@ const PUB = 'sb_publishable_FAKEfakeFAKE1234';
 const SECRET = 'sb_' + 'secret_FAKEfakeFAKE1234';
 
 let n = 0;
-function run(lines) {
+function run(lines, env = {}) {
   const f = join(dir, `e${n++}.env`);
   writeFileSync(f, lines.join('\n') + '\n');
-  return spawnSync(process.execPath, [SCRIPT, f], { encoding: 'utf8' });
+  const childEnv = { ...process.env, ...env };
+  if (!('FELIX_ALLOWED_API_HOSTS' in env)) delete childEnv.FELIX_ALLOWED_API_HOSTS;
+  return spawnSync(process.execPath, [SCRIPT, f], { encoding: 'utf8', env: childEnv });
 }
 const beta = (url, key = PUB, extra = []) => run(['APP_ENV=beta', `SUPABASE_URL=${url}`, `SUPABASE_PUBLISHABLE_KEY=${key}`, ...extra]);
 
@@ -69,7 +71,17 @@ for (const h of ['127.255.0.9', '[::]', '[fe80::1]', '[fd00::5]', '[::ffff:127.0
                  'db.internal', 'supabase.lan', '100.64.0.1', 'intranet', '2130706433']) {
   test(`rechaza host local ${h}`, () => assert.equal(beta(`https://${h}:54321`).status, 1));
 }
-test('acepta un dominio propio público', () => assert.equal(beta('https://api.felix.cl').status, 0));
+test('acepta un dominio propio listado en FELIX_ALLOWED_API_HOSTS', () =>
+  assert.equal(run(['APP_ENV=beta', 'SUPABASE_URL=https://api.felix.cl', `SUPABASE_PUBLISHABLE_KEY=${PUB}`],
+    { FELIX_ALLOWED_API_HOSTS: 'otro.cl, api.felix.cl' }).status, 0));
+test('rechaza un dominio propio no listado (QA-31, allowlist)', () =>
+  assert.equal(beta('https://api.felix.cl').status, 1));
+test('ignora comentarios con sb_secret_ (QA-30) pero no valores', () => {
+  assert.equal(beta('https://x.supabase.co', PUB, ['# Nunca sb_secret_...']).status, 0);
+  assert.equal(beta('https://x.supabase.co', PUB, [`X=${SECRET} # comentario`]).status, 1);
+});
+test('rechaza un subdominio anidado que imita supabase.co', () =>
+  assert.equal(beta('https://supabase.co.evil.example').status, 1));
 test('rechaza sb_secret_ en medio de un valor', () =>
   assert.equal(beta('https://x.supabase.co', PUB, [`MAPS_API_KEY=abc,${SECRET}`]).status, 1));
 test('rechaza JWT service_role en medio de un valor', () =>
@@ -83,7 +95,7 @@ test('rechaza sb_secret_ con export y comillas dobles', () =>
 // QA-30: el flujo del runbook (copiar env.example a .env.beta y completar) se
 // rechaza por el COMENTARIO "Nunca sb_secret_..." de la plantilla: el escaneo del
 // texto crudo incluye las líneas de comentario.
-test('QA-30: acepta un .env.beta creado desde env.example', { todo: 'QA-30' }, () => {
+test('QA-30: acepta un .env.beta creado desde env.example', () => {
   const plantilla = readFileSync(join(dirname(SCRIPT), '..', '..', 'env.example'), 'utf8')
     .replace(/^APP_ENV=.*$/m, 'APP_ENV=beta')
     .replace(/^SUPABASE_URL=.*$/m, 'SUPABASE_URL=https://abcdefghijklmnopqrst.supabase.co')
@@ -94,5 +106,5 @@ test('QA-30: acepta un .env.beta creado desde env.example', { todo: 'QA-30' }, (
 // QA-31: hosts locales residuales (IPv4 embebida en IPv6 no "mapped" y nombres
 // DNS que resuelven a loopback). Solución de fondo: allowlist de hosts.
 for (const h of ['[::127.0.0.1]', '[64:ff9b::7f00:1]', '127.0.0.1.nip.io', 'localtest.me']) {
-  test(`QA-31: rechaza host local ${h}`, { todo: 'QA-31' }, () => assert.equal(beta(`https://${h}:54321`).status, 1));
+  test(`QA-31: rechaza host local ${h}`, () => assert.equal(beta(`https://${h}:54321`).status, 1));
 }

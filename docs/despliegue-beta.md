@@ -80,7 +80,8 @@ npx --yes supabase@3.2.0 link --project-ref <REF>    # pide la contraseña de la
 
     | Para | Permiso |
     |---|---|
-    | `link` | Project Settings (Read), API Keys (Read), API Key Secrets (Read) |
+    | Todos los comandos | Projects (Read) y Branching production (Read) (`projects_read`, `branching_production_read`) |
+    | `link` | Project admin (Read) (`project_admin_read`), Project Settings (Read), API Keys (Read), API Key Secrets (Read) |
     | `migration list` / `db push --remote` | Database (Read-write), Database Pooling Config (Read), Migrations (Read-write) |
     | `db advisors --remote` | Advisors (Read) |
     | `functions deploy` | Edge Functions (Read-write) |
@@ -495,7 +496,7 @@ git checkout HEAD -- supabase/functions
 | Ambiente | Archivo (no se versiona) | Comando |
 |---|---|---|
 | Local | `.env` | `flutter run -d chrome --dart-define-from-file=.env` |
-| Beta | `.env.beta` | `node tool/env/validar_env.mjs .env.beta` y luego `flutter build web --release --base-href / --dart-define-from-file=.env.beta` |
+| Beta | `.env.beta` | `node tool/env/validar_env.mjs .env.beta` (exige `*.supabase.co`; con dominio propio, antepone `FELIX_ALLOWED_API_HOSTS=api.tudominio.cl` y crea la variable del mismo nombre en el Environment de GitHub) y luego `flutter build web --release --base-href / --dart-define-from-file=.env.beta` |
 | Producción | `.env.prod` | Igual, con `.env.prod` y `APP_ENV=production` |
 
 - La plantilla es `env.example`. `.env` y `.env.*` están en `.gitignore`.
