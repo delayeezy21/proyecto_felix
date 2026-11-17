@@ -173,6 +173,9 @@ try {
     prefer: 'return=representation', body: { revoked_at: '2099-01-01T00:00:00Z' } });
   known(!(rev2.status === 200 && rev2.json.length === 1), 'QA-05',
     'un retiro ya registrado no se puede reescribir (fecha de revocación inmutable)');
+  const regrant = await rest('consents', { method: 'POST', token: owner.token,
+    body: { user_id: owner.id, purpose: 'marketing', version: legal.privacy } });
+  check(regrant.status === 201, 'tras retirarlo, el dueño puede volver a otorgar el consentimiento');
 
   // Perfil: comuna obligatoria y aislamiento.
   const nullCommune = await rest(`owner_profiles?user_id=eq.${owner.id}`, { method: 'PATCH', token: owner.token,
@@ -366,7 +369,8 @@ try {
     prefer: 'return=representation', body: { declaration_accepted_at: null } });
   known(!(decl.status === 200 && decl.json[0]?.declaration_accepted_at === null), 'QA-02',
     'en revisión: el vet no puede retirar la declaración jurada');
-  // Restaurar para que el resto del flujo sea realista.
+  // Si el defecto reaparece, restaurar para que el resto del flujo sea realista
+  // (con QA-02 corregido este PATCH responde 403 y no cambia nada).
   await rest(`vet_profiles?user_id=eq.${vet.id}`, { method: 'PATCH', token: vet.token,
     body: { declaration_accepted_at: new Date().toISOString() } });
   const sub = await rest(`vet_profiles?user_id=eq.${vet.id}`, { method: 'PATCH', token: vet.token,
@@ -374,9 +378,14 @@ try {
   known(!(sub.status === 200 && sub.json.length === 1), 'QA-02',
     'en revisión: el vet no reescribe la fecha de envío (orden de la cola)');
   const delSp = await rest(`vet_species?vet_id=eq.${vet.id}`, { method: 'DELETE', token: vet.token, prefer: 'return=representation' });
-  known(!(delSp.status === 200 && delSp.json.length > 0), 'QA-02',
+  known(!(delSp.status === 200 && delSp.json.length > 0), 'QA-12',
     'en revisión: el vet no puede quitar todas sus especies');
-  await rest('vet_species', { method: 'POST', token: vet.token, body: { vet_id: vet.id, species_id: perro } });
+  if (delSp.json.length > 0) {
+    await rest('vet_species', { method: 'POST', token: vet.token, body: { vet_id: vet.id, species_id: perro } });
+  }
+  const addSpec = await rest('vet_specialties', { method: 'POST', token: vet.token,
+    body: { vet_id: vet.id, specialty_id: (await rest('specialties?select=id&slug=eq.urgencias', { token: vet.token })).json[0].id } });
+  known(addSpec.status >= 400, 'QA-12', 'en revisión: el vet no agrega especialidades');
   const extraPath = `${vet.id}/extra-${stamp}.pdf`;
   const extraUp = await up(vet, extraPath, pdf, 'application/pdf');
   known(extraUp.status >= 400, 'QA-03', 'en revisión: no se suben documentos nuevos (Storage)');
@@ -404,7 +413,7 @@ try {
   check(vetBReview.status === 403, 'otro vet no revisa solicitudes');
   const longNotes = await rpc('review_vet_application', admin.token, { p_vet_id: vet.id, p_approve: false,
     p_reason: 'Falta folio', p_notes: 'x'.repeat(1001) });
-  check(longNotes.status === 400, 'notas de revisión > 1000 caracteres: rechazadas (la UI no limita: QA-08)');
+  check(longNotes.status === 400, 'notas de revisión > 1000 caracteres: rechazadas por la BD (la UI limita a 500 desde d0c586c)');
 
   const rej = await rpc('review_vet_application', admin.token, { p_vet_id: vet.id, p_approve: false,
     p_reason: 'El nombre no coincide con la cédula' });

@@ -1,5 +1,5 @@
-// Regresiones de UI de los defectos del QA de la versión c251867
-// (docs/qa/QA-c251867.md). Los defectos abiertos quedan con `skip`: al
+// Regresiones de UI de los defectos encontrados por el QA (docs/qa/QA-c251867.md
+// y docs/qa/QA-d0c586c.md). Los defectos abiertos quedan con `skip`: al
 // corregirlos, quita el `skip` para que la prueba quede activa.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -73,4 +73,45 @@ void main() {
       );
     },
   );
+
+  // --- QA de la versión d0c586c (docs/qa/QA-d0c586c.md) ---------------------
+
+  group('QA-15: el aviso "Guardando…" no queda pegado', () {
+    setUp(() {
+      vets.profile = const VetProfile(
+        userId: 'v1',
+        displayName: 'Dra. Vera',
+        status: VetStatus.pending,
+        university: 'Universidad de Chile',
+        graduationYear: 2015,
+      );
+    });
+
+    testWidgets('si el vet escribe y deshace antes del autoguardado', (
+      tester,
+    ) async {
+      await open(tester);
+      final field = find.byKey(const Key('vet-university'));
+      await tester.enterText(field, 'Universidad de Chilex');
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.enterText(field, 'Universidad de Chile');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('vet-saving-before-submit')),
+        findsNothing,
+        reason: 'no hay nada que guardar: el envío no debe quedar bloqueado',
+      );
+    }, skip: true); // QA-15 abierto: quitar al corregir.
+
+    testWidgets('si el dato queda inválido (no se autoguarda)', (tester) async {
+      await open(tester);
+      await tester.enterText(find.byKey(const Key('vet-year')), '19');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.enterText(find.byKey(const Key('vet-year')), '2015');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('vet-saving-before-submit')), findsNothing);
+    }, skip: true); // QA-15 abierto: quitar al corregir.
+  });
 }
