@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:proyecto_felix/domain/models/account.dart';
@@ -63,6 +64,10 @@ abstract interface class VetRepository {
     String? reason,
     String? notes,
   });
+
+  /// Ejecuta la verificación asistida del título (Edge Function
+  /// `verify-vet-title`). Solo sugiere chequeos; nunca aprueba.
+  Future<void> runTitleVerification(String vetId);
 }
 
 class SupabaseVetRepository implements VetRepository {
@@ -281,8 +286,77 @@ class SupabaseVetRepository implements VetRepository {
       });
 
   @override
-  Future<void> submitApplication() =>
-      _guard(() => _client.rpc<dynamic>('submit_vet_application'));
+  Future<void> submitApplication() async {
+    await _guard(() => _client.rpc<dynamic>('submit_vet_application'));
+    // Verificación asistida en segundo plano: si falla o está apagada, la
+    // revisión manual sigue igual (el admin puede ejecutarla después).
+    unawaited(
+      _client.functions
+          .invoke(verificationFunction, body: const <String, dynamic>{})
+          .then<void>((_) {}, onError: (Object _) {}),
+    );
+  }
+
+  static const verificationFunction = 'verify-vet-title';
+
+  static TitleVerification? _verification(Map<String, dynamic> r) {
+    final source = VerificationSource.tryParse(r['source'] as String?);
+    final at = _date(r['created_at']);
+    if (source == null || at == null) return null;
+    return TitleVerification(
+      source: source,
+      outcome: VerificationOutcome.parse(r['outcome'] as String?),
+      risk: VerificationRisk.tryParse(r['risk'] as String?),
+      suggestedChecks: {
+        for (final c in (r['suggested_checks'] as List?) ?? const []) '$c',
+      },
+      createdAt: at,
+    );
+  }
+
+  /// Resultados de la ronda actual. Si la consulta falla, lista vacía: la
+  /// revisión manual no depende de la verificación automática.
+  Future<List<TitleVerification>> _verificationsOf(
+    String vetId,
+    DateTime? since,
+  ) async {
+    try {
+      final rows = await _client
+          .from('vet_title_verifications')
+          .select('source, outcome, risk, suggested_checks, created_at')
+          .eq('vet_id', vetId)
+          .order('created_at', ascending: false)
+          .limit(20);
+      return latestVerifications([
+        for (final r in rows) ?_verification(r),
+      ], since: since);
+    } on Object {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> runTitleVerification(String vetId) async {
+    try {
+      await _client.functions.invoke(
+        verificationFunction,
+        body: {'vet_id': vetId},
+      );
+    } on FunctionException catch (e) {
+      throw VetFailure(switch (e.status) {
+        429 => 'Ya se ejecutó varias veces. Espera unos minutos.',
+        409 => 'La solicitud ya no está en revisión.',
+        _ =>
+          'La verificación automática no está disponible. '
+              'Sigue con la revisión manual.',
+      });
+    } on Object {
+      throw const VetFailure(
+        'La verificación automática no está disponible. '
+        'Sigue con la revisión manual.',
+      );
+    }
+  }
 
   @override
   Future<List<VetApplicationSummary>> pendingApplications() => _guard(() async {
@@ -319,8 +393,10 @@ class SupabaseVetRepository implements VetRepository {
             .from('vet_specialties')
             .select('specialties(name)')
             .eq('vet_id', vetId);
+        final profile = _profile(p);
         return VetApplicationDetail(
-          profile: _profile(p),
+          verifications: await _verificationsOf(vetId, profile.submittedAt),
+          profile: profile,
           documents: await _documentsOf(vetId),
           speciesNames: [
             for (final r in species) (r['species'] as Map)['name'] as String,

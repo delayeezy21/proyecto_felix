@@ -36,6 +36,8 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Datos de referencia (regiones, 346 comunas, especies, especialidades, tarifas, parámetros) van en migraciones; datos demo (clínicas ficticias) en `seed.sql`. Los catálogos no se borran: se desactivan (`active`).
 - `pricing_config` es versionada (solo INSERT). Cambios del admin en catálogos quedan en `admin_audit_log` (trigger `private.log_admin_change`).
 - Para no perder datos locales, aplicar migraciones con `supabase migration up` (no `db reset`).
+- Verificación del título **asistida** (`docs/verificacion-automatica.md`): Edge Function `verify-vet-title` + tabla `vet_title_verifications`. Solo sugiere chequeos y nunca aprueba. `TITLE_VERIFICATION_PROVIDER` = `off` (por defecto) | `fake` | `colmevet`. Nunca llamar a COLMEVET en tests ni en CI.
+- E2E de la verificación (`tool/e2e/verificacion_e2e.mjs`) y unit tests de los adaptadores (`node --test supabase/functions/verify-vet-title/providers.test.ts`): se ejecutan en un stack aislado con `TITLE_VERIFICATION_PROVIDER = "fake"` en `[edge_runtime.secrets]`.
 - `dart fix` puede introducir imports de `riverpod/src` y `riverpod: any`: revisar el diff después de usarlo.
 
 ## Reglas de negocio (valores por defecto, configurables en `pricing_config`)
