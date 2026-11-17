@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:proyecto_felix/core/theme/app_theme.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
+import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
+import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 import 'package:proyecto_felix/ui/features/vet/view_models/vet_providers.dart';
 
@@ -39,19 +42,19 @@ class VetProfileView extends ConsumerWidget {
       ),
       body: switch (profile) {
         AsyncData(:final value) => _Body(profile: value),
-        AsyncError(:final error) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(friendlyError(error)),
-              TextButton(
-                onPressed: () => ref.invalidate(vetProfileProvider),
-                child: const Text('Reintentar'),
-              ),
-            ],
+        AsyncError(:final error) => SingleChildScrollView(
+          child: EmptyState(
+            icon: Icons.cloud_off,
+            isError: true,
+            title: friendlyError(error),
+            action: OutlinedButton.icon(
+              onPressed: () => ref.invalidate(vetProfileProvider),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
           ),
         ),
-        _ => const Center(child: CircularProgressIndicator()),
+        _ => const LoadingView(),
       },
     );
   }
@@ -95,27 +98,62 @@ class _Body extends ConsumerWidget {
 }
 
 class _Section extends StatelessWidget {
-  const new({required this.title, required this.child, this.subtitle});
+  const new({
+    required this.title,
+    required this.icon,
+    required this.child,
+    this.subtitle,
+  });
 
   final String title;
+  final IconData icon;
   final String? subtitle;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final t = theme.textTheme;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: t.titleMedium),
-            if (subtitle != null) ...[
-              const SizedBox(height: 4),
-              Text(subtitle!, style: t.bodySmall),
-            ],
-            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ExcludeSemantics(
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(AppTheme.radius),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 22,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: t.titleMedium),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle!, style: t.bodySmall),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
             child,
           ],
         ),
@@ -135,11 +173,13 @@ class _StatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final (icon, color, title, text) = switch (profile.status) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final (icon, color, foreground, title, text) = switch (profile.status) {
       VetStatus.approved => (
         Icons.verified,
         scheme.primaryContainer,
+        scheme.onPrimaryContainer,
         'Perfil verificado',
         'Un administrador revisó tu título e identidad. Ya puedes recibir '
             'solicitudes cuando se habiliten las visitas.',
@@ -147,6 +187,7 @@ class _StatusBanner extends StatelessWidget {
       VetStatus.rejected => (
         Icons.error_outline,
         scheme.errorContainer,
+        scheme.onErrorContainer,
         'Solicitud rechazada',
         'Motivo: ${profile.rejectionReason ?? '—'}\nCorrige lo indicado y '
             'vuelve a enviarla.',
@@ -154,12 +195,14 @@ class _StatusBanner extends StatelessWidget {
       VetStatus.suspended => (
         Icons.block,
         scheme.errorContainer,
+        scheme.onErrorContainer,
         'Cuenta suspendida',
         'Contacta al equipo de Felix para más información.',
       ),
       VetStatus.pending when profile.inReview => (
         Icons.hourglass_top,
         scheme.secondaryContainer,
+        scheme.onSecondaryContainer,
         'En revisión',
         'Recibimos tu solicitud. Un administrador verificará tu título y tu '
             'identidad; te avisaremos el resultado.',
@@ -167,6 +210,7 @@ class _StatusBanner extends StatelessWidget {
       VetStatus.pending => (
         Icons.assignment_outlined,
         scheme.surfaceContainerHighest,
+        scheme.onSurface,
         'Completa tu solicitud',
         'Para atender en Felix verificamos que tienes título de Médico '
             'Veterinario válido en Chile. Completa los pasos y envíala.',
@@ -175,11 +219,42 @@ class _StatusBanner extends StatelessWidget {
     return Card(
       key: Key('vet-status-${profile.status.name}'),
       color: color,
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(text),
-        isThreeLine: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.largeRadius),
+      ),
+      child: Semantics(
+        container: true,
+        liveRegion: true,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ExcludeSemantics(child: Icon(icon, color: foreground, size: 28)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: foreground,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      text,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: foreground,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -412,6 +487,7 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
     final editable = p.canEditProfessionalData;
     return _Section(
       title: 'Datos profesionales',
+      icon: Icons.school_outlined,
       subtitle: editable
           ? 'Deben coincidir con tu certificado de título.'
           : 'Bloqueados mientras están en revisión o tras la verificación.',
@@ -419,9 +495,9 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 12,
           children: [
             Text('Nombre profesional: ${p.displayName}'),
-            const SizedBox(height: 8),
             if (editable) ...[
               TextFormField(
                 key: const Key('vet-university'),
@@ -474,15 +550,17 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
               maxLength: 500,
               decoration: const InputDecoration(
                 labelText: 'Presentación para los dueños (opcional)',
+                alignLabelWithHint: true,
               ),
             ),
             Row(
               children: [
                 Expanded(child: _saveIndicator(context)),
-                FilledButton.tonal(
+                FilledButton.tonalIcon(
                   key: const Key('vet-save-data'),
                   onPressed: _saving ? null : _save,
-                  child: const Text('Guardar'),
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Guardar'),
                 ),
               ],
             ),
@@ -541,15 +619,17 @@ class _SpeciesSpecialtiesCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(vetRepositoryProvider);
+    final label = Theme.of(context).textTheme.titleSmall;
     return _Section(
       title: 'Especies y especialidades',
+      icon: Icons.pets,
       subtitle: locked
           ? 'Bloqueadas mientras tu solicitud está en revisión.'
           : 'Solo recibirás solicitudes que coincidan con lo que marques.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Especies que atiendes'),
+          Text('Especies que atiendes', style: label),
           const SizedBox(height: 8),
           _chips(
             context,
@@ -560,7 +640,7 @@ class _SpeciesSpecialtiesCard extends ConsumerWidget {
             refresh: () => ref.invalidate(vetSpeciesProvider),
           ),
           const SizedBox(height: 16),
-          const Text('Especialidades'),
+          Text('Especialidades', style: label),
           const SizedBox(height: 8),
           _chips(
             context,
@@ -591,12 +671,16 @@ class _AvailabilityCard extends ConsumerWidget {
 
     return _Section(
       title: 'Disponibilidad semanal',
+      icon: Icons.calendar_month_outlined,
       subtitle: 'Horarios en que aceptas visitas agendadas.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (blocks.isEmpty)
-            const Text('Aún no defines horarios.')
+            const InfoBanner(
+              icon: Icons.event_busy_outlined,
+              message: 'Aún no defines horarios.',
+            )
           else
             for (final b in blocks)
               ListTile(
@@ -665,6 +749,7 @@ class _BlockDialogState extends State<_BlockDialog> {
       title: const Text('Nuevo horario'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
+        spacing: 12,
         children: [
           DropdownButtonFormField<int>(
             key: const Key('block-weekday'),
@@ -772,6 +857,7 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
 
     return _Section(
       title: 'Documentos de verificación',
+      icon: Icons.folder_outlined,
       subtitle: allVerified
           ? 'Tus documentos ya fueron verificados y eliminados por privacidad.'
           : 'PDF, JPG o PNG de hasta 5 MB. Solo los ve el equipo que verifica '
@@ -829,13 +915,20 @@ class _DocumentRow extends StatelessWidget {
       VetDocument(reviewStatus: 'rejected') => 'Rechazado',
       _ => 'Subido',
     };
+    final scheme = Theme.of(context).colorScheme;
+    final (icon, color) = needsUpload
+        ? (Icons.upload_file, scheme.onSurfaceVariant)
+        : switch (doc) {
+            VetDocument(reviewStatus: 'rejected') => (
+              Icons.cancel_outlined,
+              scheme.error,
+            ),
+            _ => (Icons.check_circle, scheme.primary),
+          };
     return ListTile(
       key: Key('doc-${kind.dbValue}'),
       contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        needsUpload ? Icons.upload_file : Icons.check_circle,
-        color: needsUpload ? null : Theme.of(context).colorScheme.primary,
-      ),
+      leading: Icon(icon, color: color),
       title: Text(kind.label),
       subtitle: Text(status, key: Key('doc-status-${kind.dbValue}')),
       trailing: !editable
@@ -850,10 +943,14 @@ class _DocumentRow extends StatelessWidget {
                 semanticsLabel: 'Subiendo',
               ),
             )
-          : TextButton(
+          : TextButton.icon(
               key: Key('upload-${kind.dbValue}'),
               onPressed: onUpload,
-              child: Text(doc == null ? 'Subir' : 'Reemplazar'),
+              icon: Icon(
+                doc == null ? Icons.file_upload_outlined : Icons.sync,
+                size: 18,
+              ),
+              label: Text(doc == null ? 'Subir' : 'Reemplazar'),
             ),
     );
   }
@@ -882,6 +979,7 @@ class _SubmitCard extends ConsumerWidget {
 
     return _Section(
       title: 'Declaración y envío',
+      icon: Icons.send_outlined,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -908,12 +1006,13 @@ class _SubmitCard extends ConsumerWidget {
             const SizedBox(height: 8),
           ],
           if (missing.isNotEmpty) ...[
-            Text(
-              'Te falta: ${missing.join(' · ')}',
-              key: const Key('vet-missing'),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            InfoBanner(
+              tone: BannerTone.warning,
+              icon: Icons.checklist,
+              message: 'Te falta: ${missing.join(' · ')}',
+              textKey: const Key('vet-missing'),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
           ],
           FilledButton(
             key: const Key('vet-submit'),
