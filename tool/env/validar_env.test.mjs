@@ -1,0 +1,64 @@
+// Pruebas de tool/env/validar_env.mjs (QA d142432, docs/qa/QA-d142432.md).
+//
+//   node --test tool/env/validar_env.test.mjs
+//
+// Todas las claves son FICTICIAS. Los casos marcados "QA-21"/"QA-22" documentan
+// bypasses encontrados en la QA y fallan hasta que se corrijan.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), 'validar_env.mjs');
+const dir = mkdtempSync(join(tmpdir(), 'validar-env-'));
+process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
+
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const jwt = (role) => `${b64({ alg: 'HS256' })}.${b64({ role, iss: 'supabase' })}.firma`;
+const PUB = 'sb_publishable_FAKEfakeFAKE1234';
+const SECRET = 'sb_secret_FAKEfakeFAKE1234';
+
+let n = 0;
+function run(lines) {
+  const f = join(dir, `e${n++}.env`);
+  writeFileSync(f, lines.join('\n') + '\n');
+  return spawnSync(process.execPath, [SCRIPT, f], { encoding: 'utf8' });
+}
+const beta = (url, key = PUB, extra = []) => run(['APP_ENV=beta', `SUPABASE_URL=${url}`, `SUPABASE_PUBLISHABLE_KEY=${key}`, ...extra]);
+
+test('acepta un entorno beta válido', () => assert.equal(beta('https://abcdefghijklmnopqrst.supabase.co').status, 0));
+test('acepta la anon JWT legada', () => assert.equal(beta('https://x.supabase.co', jwt('anon')).status, 0));
+test('acepta local con http://127.0.0.1', () =>
+  assert.equal(run(['APP_ENV=local', 'SUPABASE_URL=http://127.0.0.1:54321', `SUPABASE_PUBLISHABLE_KEY=${PUB}`]).status, 0));
+
+test('rechaza sb_secret_ como publishable key', () => assert.equal(beta('https://x.supabase.co', SECRET).status, 1));
+test('rechaza sb_secret_ también en local', () =>
+  assert.equal(run(['APP_ENV=local', 'SUPABASE_URL=http://127.0.0.1:54321', `SUPABASE_PUBLISHABLE_KEY=${SECRET}`]).status, 1));
+test('rechaza sb_secret_ en cualquier variable', () =>
+  assert.equal(beta('https://x.supabase.co', PUB, [`MAPS_API_KEY=${SECRET}`]).status, 1));
+test('rechaza una JWT service_role', () => assert.equal(beta('https://x.supabase.co', jwt('service_role')).status, 1));
+test('rechaza variables de servidor', () =>
+  assert.equal(beta('https://x.supabase.co', PUB, ['SUPABASE_SERVICE_KEY=x']).status, 1));
+test('nunca imprime el valor de la clave secreta', () => {
+  const r = beta('https://x.supabase.co', SECRET);
+  assert.ok(!(r.stdout + r.stderr).includes(SECRET));
+});
+test('rechaza http en beta', () => assert.equal(beta('http://x.supabase.co').status, 1));
+
+for (const h of ['localhost', '127.0.0.1', '10.0.0.5', '172.20.0.1', '192.168.1.10']) {
+  test(`rechaza host local/privado ${h}`, () => assert.equal(beta(`https://${h}:54321`).status, 1));
+}
+
+// QA-21: hosts locales que hoy pasan la validación.
+for (const h of ['0.0.0.0', '[::1]', '127.0.0.2', 'localhost.', 'host.docker.internal', '169.254.1.1', 'mipc.local']) {
+  test(`QA-21: rechaza host local ${h}`, () => assert.equal(beta(`https://${h}:54321`).status, 1));
+}
+
+// QA-22: valores entre comillas simples esquivan la detección de claves secretas.
+test("QA-22: rechaza sb_secret_ entre comillas simples", () =>
+  assert.equal(beta('https://x.supabase.co', PUB, [`MAPS_API_KEY='${SECRET}'`]).status, 1));
+test("QA-22: rechaza JWT service_role entre comillas simples", () =>
+  assert.equal(beta('https://x.supabase.co', PUB, [`MAPS_API_KEY='${jwt('service_role')}'`]).status, 1));
