@@ -6,7 +6,7 @@
 // bypasses encontrados en la QA (corregidos en validar_env.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -76,3 +76,23 @@ test('rechaza JWT service_role en medio de un valor', () =>
   assert.equal(beta('https://x.supabase.co', PUB, [`MAPS_API_KEY=x ${jwt('service_role')} y`]).status, 1));
 test('rechaza sb_secret_ con export y comillas dobles', () =>
   assert.equal(beta('https://x.supabase.co', PUB, [`export MAPS_API_KEY="${SECRET}"`]).status, 1));
+
+// ---- Recertificación 9138c22 (docs/qa/QA-9138c22.md) ----
+// Marcados `todo`: se reportan como pendientes sin romper el job de CI.
+
+// QA-30: el flujo del runbook (copiar env.example a .env.beta y completar) se
+// rechaza por el COMENTARIO "Nunca sb_secret_..." de la plantilla: el escaneo del
+// texto crudo incluye las líneas de comentario.
+test('QA-30: acepta un .env.beta creado desde env.example', { todo: 'QA-30' }, () => {
+  const plantilla = readFileSync(join(dirname(SCRIPT), '..', '..', 'env.example'), 'utf8')
+    .replace(/^APP_ENV=.*$/m, 'APP_ENV=beta')
+    .replace(/^SUPABASE_URL=.*$/m, 'SUPABASE_URL=https://abcdefghijklmnopqrst.supabase.co')
+    .replace(/^SUPABASE_PUBLISHABLE_KEY=.*$/m, `SUPABASE_PUBLISHABLE_KEY=${PUB}`);
+  assert.equal(run(plantilla.split(/\r?\n/)).status, 0);
+});
+
+// QA-31: hosts locales residuales (IPv4 embebida en IPv6 no "mapped" y nombres
+// DNS que resuelven a loopback). Solución de fondo: allowlist de hosts.
+for (const h of ['[::127.0.0.1]', '[64:ff9b::7f00:1]', '127.0.0.1.nip.io', 'localtest.me']) {
+  test(`QA-31: rechaza host local ${h}`, { todo: 'QA-31' }, () => assert.equal(beta(`https://${h}:54321`).status, 1));
+}
