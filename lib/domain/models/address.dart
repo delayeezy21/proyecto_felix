@@ -36,6 +36,24 @@ class Address {
   );
 }
 
+/// Comuna compatible con un punto del mapa (la valida el servidor).
+@immutable
+class CommuneMatch {
+  const new({
+    required this.communeId,
+    required this.regionId,
+    required this.name,
+    required this.distanceMeters,
+  });
+
+  final int communeId;
+  final int regionId;
+  final String name;
+
+  /// 0 si el punto cae dentro del límite (ampliado) de la comuna.
+  final double distanceMeters;
+}
+
 @immutable
 class AddressDraft {
   const new({

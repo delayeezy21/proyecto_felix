@@ -16,6 +16,7 @@ import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
+import 'package:proyecto_felix/domain/models/geo.dart';
 import 'package:proyecto_felix/domain/models/pet.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
 
@@ -216,8 +217,18 @@ class FakeCatalogRepository implements CatalogRepository {
     Region(id: 5, name: 'Valparaíso'),
   ];
   final communeList = const [
-    Commune(id: 101, regionId: 13, name: 'Santiago'),
-    Commune(id: 102, regionId: 13, name: 'Ñuñoa'),
+    Commune(
+      id: 101,
+      regionId: 13,
+      name: 'Santiago',
+      center: GeoPoint(-33.44, -70.65),
+    ),
+    Commune(
+      id: 102,
+      regionId: 13,
+      name: 'Ñuñoa',
+      center: GeoPoint(-33.46, -70.60),
+    ),
     Commune(id: 201, regionId: 5, name: 'Viña del Mar'),
   ];
   final Map<CatalogKind, List<CatalogItem>> itemsByKind = {

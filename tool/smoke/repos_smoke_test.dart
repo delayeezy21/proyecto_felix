@@ -231,17 +231,33 @@ void main() {
     expect(mine.single.active, isFalse);
 
     final addresses = SupabaseAddressRepository(c);
+    // QA-F4-02: la comuna se deriva del punto (y el servidor la valida).
+    const point = GeoPoint(-33.45, -70.66);
+    final matches = await addresses.communesAt(point);
+    expect(matches.first.name, 'Santiago');
+    expect(communes.first.center, isNotNull, reason: 'centro embebido');
+    await expectLater(
+      addresses.create(
+        AddressDraft(
+          label: 'Incoherente',
+          streetText: 'Calle Smoke 1',
+          communeId: communes.firstWhere((x) => x.name == 'Alhué').id,
+          point: point,
+        ),
+      ),
+      throwsA(isA<OwnerDataFailure>()),
+    );
     await addresses.create(
       AddressDraft(
         label: 'Casa',
         streetText: 'Calle Smoke 123',
-        communeId: communes.first.id,
-        point: const GeoPoint(-33.45, -70.66),
+        communeId: matches.first.communeId,
+        point: point,
       ),
     );
     final addr = await addresses.myAddresses();
     expect(addr.single.point.lat, -33.45);
-    expect(addr.single.communeName, communes.first.name);
+    expect(addr.single.communeName, 'Santiago');
 
     // Otro dueño no ve nada de lo anterior.
     final other = await _newUser('owner-f4-b');

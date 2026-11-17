@@ -52,14 +52,32 @@ void main() {
       expect(google.effectiveMapProvider(AppPlatform.ios), MapProvider.osm);
     });
 
-    test('el geocoding en Web usa Nominatim aunque el mapa sea Google', () {
-      expect(
-        google.effectiveGeocodingProvider(AppPlatform.web),
-        MapProvider.osm,
+    test(
+      'el geocoding no reutiliza la clave del mapa (Android la rechaza)',
+      () {
+        // Con solo MAPS_API_KEY, el geocoding es Nominatim en todas partes.
+        for (final p in AppPlatform.values) {
+          expect(google.effectiveGeocodingProvider(p), MapProvider.osm);
+        }
+      },
+    );
+
+    test('Google Geocoding solo en Android y con su propia clave', () {
+      const env = Env(
+        supabaseUrl: '',
+        supabasePublishableKey: '',
+        mapProvider: MapProvider.google,
+        mapsApiKey: 'abc',
+        geocodingApiKey: 'geo',
       );
       expect(
-        google.effectiveGeocodingProvider(AppPlatform.android),
+        env.effectiveGeocodingProvider(AppPlatform.android),
         MapProvider.google,
+      );
+      expect(env.effectiveGeocodingProvider(AppPlatform.web), MapProvider.osm);
+      expect(
+        env.effectiveGeocodingProvider(AppPlatform.windows),
+        MapProvider.osm,
       );
     });
 

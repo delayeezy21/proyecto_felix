@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show immutable;
+import 'package:proyecto_felix/domain/models/geo.dart';
 
 @immutable
 class Region {
@@ -16,11 +17,20 @@ class Region {
 
 @immutable
 class Commune {
-  const new({required this.id, required this.regionId, required this.name});
+  const new({
+    required this.id,
+    required this.regionId,
+    required this.name,
+    this.center,
+  });
 
   final int id;
   final int regionId;
   final String name;
+
+  /// Punto dentro de la comuna (límites BCN). Sirve para centrar el mapa sin
+  /// geocodificar. null en Antártica (sin límite en la fuente).
+  final GeoPoint? center;
 
   @override
   bool operator ==(Object other) => other is Commune && other.id == id;

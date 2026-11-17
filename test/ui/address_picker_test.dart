@@ -81,7 +81,6 @@ void main() {
   testWidgets('la búsqueda se acota a la comuna elegida', (tester) async {
     await openNewAddress(tester);
     await chooseCommune(tester);
-    geocoder.searches.clear(); // el centro de la comuna también consulta
     await tester.enterText(
       find.byKey(const Key('address-street')),
       'Av. Ficticia',
@@ -232,5 +231,78 @@ void main() {
     await tester.pumpAndSettle();
     expect(addresses.addresses.single.active, isFalse);
     expect(find.textContaining('Desactivada'), findsOneWidget);
+  });
+
+  group('QA-F4-02: la comuna sale del punto marcado', () {
+    testWidgets('sin elegir comuna, tocar el mapa la propone y se guarda', (
+      tester,
+    ) async {
+      await openNewAddress(tester);
+      await tester.enterText(
+        find.byKey(const Key('address-street')),
+        'Calle Falsa 123',
+      );
+      await tester.tap(find.byKey(const Key('fake-map')));
+      await tester.pumpAndSettle();
+      expect(addresses.communeQueries, [map.tapPoint]);
+      expect(find.text('Metropolitana de Santiago'), findsOneWidget);
+      expect(find.text('Ñuñoa'), findsOneWidget);
+      expect(find.text('Según el punto marcado en el mapa.'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('address-save')));
+      await tester.pumpAndSettle();
+      expect(addresses.created.single.communeId, 102);
+    });
+
+    testWidgets('una comuna incompatible se reemplaza por la del punto', (
+      tester,
+    ) async {
+      await openNewAddress(tester);
+      await tester.tap(find.byKey(const Key('address-region')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Metropolitana de Santiago').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('address-commune-13')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Santiago').last);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('address-street')),
+        'Calle Falsa 123',
+      );
+      await tester.tap(find.byKey(const Key('fake-map')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('address-save')));
+      await tester.pumpAndSettle();
+      expect(addresses.created.single.communeId, 102, reason: 'Ñuñoa');
+    });
+
+    testWidgets('un punto fuera de Chile se avisa y no se guarda', (
+      tester,
+    ) async {
+      addresses.matches = const [];
+      await openNewAddress(tester);
+      await chooseCommune(tester);
+      await tester.enterText(
+        find.byKey(const Key('address-street')),
+        'Calle Falsa 123',
+      );
+      await tester.tap(find.byKey(const Key('fake-map')));
+      await tester.pumpAndSettle();
+      expect(find.text('La ubicación debe estar en Chile.'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('address-save')));
+      await tester.pumpAndSettle();
+      expect(addresses.created, isEmpty);
+    });
+
+    testWidgets('elegir la comuna centra el mapa sin consultar al geocoder', (
+      tester,
+    ) async {
+      await openNewAddress(tester);
+      await chooseCommune(tester);
+      expect(map.animations, [const GeoPoint(-33.46, -70.60)]);
+      expect(geocoder.searches, isEmpty);
+    });
   });
 }
