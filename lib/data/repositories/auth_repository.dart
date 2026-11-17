@@ -45,6 +45,17 @@ abstract interface class AuthRepository {
   Future<void> signInWithGoogle();
 
   Future<void> signOut();
+
+  /// Envía el enlace para restablecer la contraseña. No revela si el correo
+  /// tiene cuenta (Supabase responde igual en ambos casos).
+  Future<void> sendPasswordReset({required String email});
+
+  /// Emite cada vez que el usuario vuelve del enlace de recuperación (evento
+  /// `passwordRecovery`): ya tiene sesión y debe fijar una contraseña nueva.
+  Stream<void> watchPasswordRecovery();
+
+  /// Cambia la contraseña del usuario con sesión (tras la recuperación).
+  Future<void> updatePassword(String password);
 }
 
 /// Deep link de retorno para OAuth y confirmación de email en móvil.
@@ -111,6 +122,23 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() => _guard(_auth.signOut);
 
+  @override
+  Future<void> sendPasswordReset({required String email}) => _guard(
+    () => _auth.resetPasswordForEmail(
+      email.trim(),
+      redirectTo: authRedirectTarget(),
+    ),
+  );
+
+  @override
+  Stream<void> watchPasswordRecovery() => _auth.onAuthStateChange
+      .where((s) => s.event == AuthChangeEvent.passwordRecovery)
+      .map((_) {});
+
+  @override
+  Future<void> updatePassword(String password) =>
+      _guard(() => _auth.updateUser(UserAttributes(password: password)));
+
   Future<T> _guard<T>(Future<T> Function() action) async {
     try {
       return await action();
@@ -133,5 +161,7 @@ String authErrorMessage(String? code, String fallback) => switch (code) {
   'over_email_send_rate_limit' ||
   'over_request_rate_limit' => 'Demasiados intentos. Espera unos minutos.',
   'provider_disabled' => 'Este método de inicio de sesión no está habilitado.',
+  'same_password' => 'La contraseña nueva debe ser distinta de la anterior.',
+  'otp_expired' => 'El enlace venció. Pide uno nuevo.',
   _ => 'No se pudo completar la operación. Inténtalo de nuevo.',
 };

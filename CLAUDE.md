@@ -32,6 +32,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - El vet lee la ficha solo vía la RPC `get_pet_record` (registra cada lectura); no tiene `SELECT` directo.
 - Supabase local concede ALL por defecto a `anon`/`authenticated` en tablas nuevas: cada migración hace `revoke all` + `grant` mínimos (con UPDATE por columna) + `enable/force row level security` + test pgTAP. Las invariantes de `000_base.test.sql` lo vigilan.
 - El registro se completa con la RPC `complete_registration` (SECURITY INVOKER); el rol solo se autoasigna como `owner`/`vet`. El admin se crea por SQL.
+- "Olvidé mi contraseña": `resetPasswordForEmail` vuelve con el evento `passwordRecovery`; mientras `passwordRecoveryProvider` sea true, el router solo deja `/reset-password`.
 - Helpers `security definer` solo en el esquema `private`, con `set search_path = ''` y `(select auth.uid())`.
 - Los roles van en `user_roles`, nunca en `user_metadata`.
 - Montos en CLP como `integer`.

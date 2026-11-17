@@ -103,6 +103,32 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() async => emit(null);
+
+  final resetCalls = <String>[];
+  final passwordUpdates = <String>[];
+  final _recovery = StreamController<void>.broadcast();
+
+  /// Simula la vuelta desde el enlace de recuperación: hay sesión y llega el
+  /// evento `passwordRecovery`.
+  void emitRecovery(String userId) {
+    emit(userId);
+    _recovery.add(null);
+  }
+
+  @override
+  Future<void> sendPasswordReset({required String email}) async {
+    resetCalls.add(email);
+    _maybeFail();
+  }
+
+  @override
+  Stream<void> watchPasswordRecovery() => _recovery.stream;
+
+  @override
+  Future<void> updatePassword(String password) async {
+    passwordUpdates.add(password);
+    _maybeFail();
+  }
 }
 
 class RegistrationCall {

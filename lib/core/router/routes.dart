@@ -5,6 +5,8 @@ abstract final class AppRoutes {
   static const sessionError = '/session-error';
   static const login = '/login';
   static const signUp = '/signup';
+  static const forgotPassword = '/forgot-password';
+  static const resetPassword = '/reset-password';
   static const onboarding = '/onboarding';
   static const owner = '/owner';
   static const ownerPetNew = '/owner/pets/new';
@@ -17,7 +19,7 @@ abstract final class AppRoutes {
   static const admin = '/admin';
   static const foundation = '/foundation';
 
-  static const Set<String> _public = {login, signUp};
+  static const Set<String> _public = {login, signUp, forgotPassword};
 
   /// Pantalla de inicio según el rol (y el estado de aprobación del vet).
   static String homeFor(Account account) => switch (account.role) {
@@ -30,7 +32,17 @@ abstract final class AppRoutes {
   /// Decide la redirección. Devuelve null si el usuario puede quedarse.
   ///
   /// Función pura: la usa go_router y se prueba con tests unitarios.
-  static String? redirect(SessionSnapshot session, String location) {
+  ///
+  /// [recoveringPassword]: el usuario volvió del enlace de "Olvidé mi
+  /// contraseña" y debe fijar una nueva antes de seguir.
+  static String? redirect(
+    SessionSnapshot session,
+    String location, {
+    bool recoveringPassword = false,
+  }) {
+    if (recoveringPassword && session is SignedIn) {
+      return location == resetPassword ? null : resetPassword;
+    }
     switch (session) {
       case SessionLoading():
         return location == splash ? null : splash;

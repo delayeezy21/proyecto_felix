@@ -90,7 +90,17 @@ class _LoginViewState extends ConsumerState<LoginView> {
             ),
           ),
         ),
-        const SizedBox(height: 20),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: TextButton(
+            key: const Key('login-forgot'),
+            onPressed: busy
+                ? null
+                : () => context.push(AppRoutes.forgotPassword),
+            child: const Text('¿Olvidaste tu contraseña?'),
+          ),
+        ),
+        const SizedBox(height: 8),
         if (state case AsyncError(:final error)) ...[
           FormError(errorMessage(error)),
           const SizedBox(height: 12),

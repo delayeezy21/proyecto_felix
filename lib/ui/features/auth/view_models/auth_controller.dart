@@ -18,7 +18,22 @@ class AuthController extends AsyncNotifier<void> {
   Future<bool> resendConfirmation({required String email}) =>
       _run(() => _repo.resendConfirmation(email: email));
 
-  Future<bool> signOut() => _run(_repo.signOut);
+  Future<bool> signOut() {
+    ref.read(passwordRecoveryProvider.notifier).finish();
+    return _run(_repo.signOut);
+  }
+
+  Future<bool> sendPasswordReset({required String email}) =>
+      _run(() => _repo.sendPasswordReset(email: email));
+
+  /// Fija la contraseña nueva y cierra el modo recuperación.
+  Future<bool> updatePassword(String password) async {
+    final ok = await _run(() => _repo.updatePassword(password));
+    if (ok && ref.mounted) {
+      ref.read(passwordRecoveryProvider.notifier).finish();
+    }
+    return ok;
+  }
 
   /// Devuelve el resultado, o null si falló (el error queda en `state`).
   Future<SignUpResult?> signUp({
@@ -43,6 +58,27 @@ class AuthController extends AsyncNotifier<void> {
 final authControllerProvider = AsyncNotifierProvider<AuthController, void>(
   AuthController.new,
 );
+
+/// true mientras el usuario volvió del enlace de recuperación y aún no fija
+/// su contraseña nueva. El router lo lleva a la pantalla de nueva contraseña.
+class PasswordRecoveryController extends Notifier<bool> {
+  @override
+  bool build() {
+    final sub = ref
+        .watch(authRepositoryProvider)
+        .watchPasswordRecovery()
+        .listen((_) => state = true);
+    ref.onDispose(sub.cancel);
+    return false;
+  }
+
+  void finish() => state = false;
+}
+
+final passwordRecoveryProvider =
+    NotifierProvider<PasswordRecoveryController, bool>(
+      PasswordRecoveryController.new,
+    );
 
 /// Mensaje legible de un error de autenticación o registro.
 String errorMessage(Object error) => switch (error) {
