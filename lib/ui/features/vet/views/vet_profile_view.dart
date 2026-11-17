@@ -255,17 +255,38 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
       (_university.text.trim().length >= 3 &&
           _validateYear(_year.text) == null);
 
+  void _setPendingFlag({required bool pending}) {
+    final notifier = ref.read(vetDataDirtyProvider.notifier);
+    if (notifier.dirty != pending) notifier.dirty = pending;
+  }
+
   void _onEdited() {
-    if (!_dirty) return;
+    if (!_dirty) {
+      // Volvió al valor guardado: nada pendiente (QA-15).
+      _debounce?.cancel();
+      _setPendingFlag(pending: false);
+      if (_saveState != _SaveState.saved) {
+        setState(() => _saveState = _SaveState.saved);
+      }
+      return;
+    }
     setState(() => _saveState = _SaveState.pending);
-    ref.read(vetDataDirtyProvider.notifier).dirty = true;
+    _setPendingFlag(pending: true);
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 900), _autoSave);
   }
 
   Future<void> _autoSave() async {
-    if (!mounted || !_dirty) return;
+    if (!mounted) return;
+    // El aviso "Guardando…" se apaga siempre al terminar, aunque no se haya
+    // guardado nada (sin cambios, dato inválido o error). QA-15.
+    if (!_dirty) {
+      _setPendingFlag(pending: false);
+      setState(() => _saveState = _SaveState.saved);
+      return;
+    }
     if (!_silentlyValid) {
+      _setPendingFlag(pending: false);
       setState(() => _saveState = _SaveState.invalid);
       return;
     }
@@ -274,10 +295,11 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
       await _persist();
       if (!mounted) return;
       setState(() => _saveState = _SaveState.saved);
-      ref.read(vetDataDirtyProvider.notifier).dirty = false;
       ref.invalidate(vetProfileProvider);
     } on Object {
       if (mounted) setState(() => _saveState = _SaveState.error);
+    } finally {
+      if (mounted) _setPendingFlag(pending: false);
     }
   }
 
@@ -718,15 +740,19 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
     final profile = widget.profile;
     final docs = ref.watch(vetDocumentsProvider).value ?? const [];
     final editable = profile.canEditProfessionalData;
-    final allPurged = docs.isNotEmpty && docs.every((d) => d.isPurged);
+    // "Verificados" solo si se purgaron tras una aprobación (QA-14).
+    final allVerified =
+        docs.isNotEmpty &&
+        docs.every((d) => d.isPurged && d.reviewStatus == 'accepted');
 
     return _Section(
       title: 'Documentos de verificación',
-      subtitle: allPurged
+      subtitle: allVerified
           ? 'Tus documentos ya fueron verificados y eliminados por privacidad.'
           : 'PDF, JPG o PNG de hasta 5 MB. Solo los ve el equipo que verifica '
                 'y se eliminan 7 días después de la aprobación '
-                '(30 si se rechaza).',
+                '(30 si se rechaza). Los borradores sin enviar se eliminan '
+                'a los 90 días.',
       child: Column(
         children: [
           for (final kind in VetDocumentKind.values)
@@ -763,9 +789,17 @@ class _DocumentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final doc = latest;
+    // Eliminado sin verificar (borrador vencido o rechazo): hay que resubir.
+    final needsUpload =
+        doc == null || (doc.isPurged && doc.reviewStatus != 'accepted');
     final status = switch (doc) {
       null => kind.required ? 'Pendiente' : 'No subido',
-      VetDocument(isPurged: true) => 'Verificado y eliminado',
+      VetDocument(isPurged: true, reviewStatus: 'accepted') =>
+        'Verificado y eliminado',
+      VetDocument(isPurged: true, reviewStatus: 'rejected') =>
+        'Eliminado tras el rechazo: súbelo de nuevo',
+      VetDocument(isPurged: true) =>
+        'Eliminado por vencimiento (90 días): súbelo de nuevo',
       VetDocument(reviewStatus: 'accepted') => 'Aceptado',
       VetDocument(reviewStatus: 'rejected') => 'Rechazado',
       _ => 'Subido',
@@ -774,8 +808,8 @@ class _DocumentRow extends StatelessWidget {
       key: Key('doc-${kind.dbValue}'),
       contentPadding: EdgeInsets.zero,
       leading: Icon(
-        doc == null ? Icons.upload_file : Icons.check_circle,
-        color: doc == null ? null : Theme.of(context).colorScheme.primary,
+        needsUpload ? Icons.upload_file : Icons.check_circle,
+        color: needsUpload ? null : Theme.of(context).colorScheme.primary,
       ),
       title: Text(kind.label),
       subtitle: Text(status, key: Key('doc-status-${kind.dbValue}')),

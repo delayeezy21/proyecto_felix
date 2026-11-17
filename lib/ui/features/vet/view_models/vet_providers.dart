@@ -59,6 +59,6 @@ class VetDataDirty extends Notifier<bool> {
   set dirty(bool value) => state = value;
 }
 
-final vetDataDirtyProvider = NotifierProvider<VetDataDirty, bool>(
-  VetDataDirty.new,
-);
+// autoDispose: se reinicia al salir de la pantalla o cambiar de cuenta (QA-15).
+final NotifierProvider<VetDataDirty, bool> vetDataDirtyProvider =
+    NotifierProvider.autoDispose<VetDataDirty, bool>(VetDataDirty.new);

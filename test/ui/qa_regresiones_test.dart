@@ -102,7 +102,7 @@ void main() {
         findsNothing,
         reason: 'no hay nada que guardar: el envío no debe quedar bloqueado',
       );
-    }, skip: true); // QA-15 abierto: quitar al corregir.
+    });
 
     testWidgets('si el dato queda inválido (no se autoguarda)', (tester) async {
       await open(tester);
@@ -112,6 +112,6 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('vet-saving-before-submit')), findsNothing);
-    }, skip: true); // QA-15 abierto: quitar al corregir.
+    });
   });
 }
