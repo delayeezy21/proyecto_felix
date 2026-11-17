@@ -29,6 +29,10 @@ abstract interface class PetRepository {
 abstract interface class AddressRepository {
   Future<List<Address>> myAddresses();
 
+  /// Comunas compatibles con el punto (RPC `communes_at_point`), la más
+  /// probable primero. Vacía si el punto no está en Chile.
+  Future<List<CommuneMatch>> communesAt(GeoPoint point);
+
   Future<void> create(AddressDraft draft);
 
   Future<void> update(String id, AddressDraft draft);
@@ -137,6 +141,23 @@ class SupabaseAddressRepository implements AddressRepository {
         .order('active', ascending: false)
         .order('label');
     return [for (final r in rows) addressFromRow(r)];
+  });
+
+  @override
+  Future<List<CommuneMatch>> communesAt(GeoPoint point) => _guard(() async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'communes_at_point',
+      params: {'p_lat': point.lat, 'p_lng': point.lng},
+    );
+    return [
+      for (final r in rows.cast<Map<String, dynamic>>())
+        CommuneMatch(
+          communeId: r['commune_id'] as int,
+          regionId: r['region_id'] as int,
+          name: r['name'] as String,
+          distanceMeters: (r['distance_m'] as num).toDouble(),
+        ),
+    ];
   });
 
   @override

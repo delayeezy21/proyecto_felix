@@ -155,7 +155,7 @@ select throws_ok(
   $$ insert into public.addresses (owner_id, label, street_text, commune_id, lat, lng)
      values ('00000000-0000-0000-0000-0000000007a1', 'Lejos', 'Calle Falsa 1',
        (select id from public.communes where name = 'Ñuñoa'), 40.4, -3.7) $$,
-  '23514', null, 'rechaza coordenadas fuera de Chile');
+  '22023', 'La ubicación debe estar en Chile', 'rechaza coordenadas fuera de Chile');
 select throws_ok(
   $$ insert into public.addresses (owner_id, label, street_text, commune_id, lat, lng)
      values ('00000000-0000-0000-0000-0000000007a2', 'Ajena', 'Calle Falsa 1',

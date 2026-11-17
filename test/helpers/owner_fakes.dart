@@ -88,6 +88,23 @@ class FakeAddressRepository implements AddressRepository {
         active: active,
       );
 
+  /// Comunas que devuelve `communesAt` (por defecto, Ñuñoa).
+  List<CommuneMatch> matches = const [
+    CommuneMatch(
+      communeId: 102,
+      regionId: 13,
+      name: 'Ñuñoa',
+      distanceMeters: 0,
+    ),
+  ];
+  final communeQueries = <GeoPoint>[];
+
+  @override
+  Future<List<CommuneMatch>> communesAt(GeoPoint point) async {
+    communeQueries.add(point);
+    return matches;
+  }
+
   @override
   Future<List<Address>> myAddresses() async => List.of(addresses);
 

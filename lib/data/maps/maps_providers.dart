@@ -49,7 +49,7 @@ final geocodingAdapterProvider = Provider<GeocodingAdapter>((ref) {
   )) {
     MapProvider.google => GoogleGeocodingAdapter(
       client: client,
-      apiKey: env.mapsApiKey,
+      apiKey: env.geocodingApiKey,
     ),
     MapProvider.osm => NominatimGeocodingAdapter(
       client: client,

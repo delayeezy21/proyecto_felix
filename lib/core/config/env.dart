@@ -27,6 +27,7 @@ class Env {
     this.osmTileUrl = defaultOsmTileUrl,
     this.osmTileAttribution = defaultOsmAttribution,
     this.nominatimUrl = defaultNominatimUrl,
+    this.geocodingApiKey = '',
   });
 
   factory fromEnvironment() => Env(
@@ -53,6 +54,9 @@ class Env {
       const String.fromEnvironment('NOMINATIM_URL'),
       defaultNominatimUrl,
     ),
+    // El analizador lo ve vacío sin --dart-define; en ejecución no lo es.
+    // ignore: avoid_redundant_argument_values
+    geocodingApiKey: const String.fromEnvironment('GOOGLE_GEOCODING_API_KEY'),
   );
 
   /// Tiles públicos de OSM: sirven para desarrollo y demos, NO para tráfico
@@ -81,6 +85,10 @@ class Env {
 
   /// Servidor Nominatim (geocoding de OSM). El público admite 1 req/s máximo.
   final String nominatimUrl;
+
+  /// Clave de la API REST de Geocoding de Google (solo Android). Distinta de
+  /// [mapsApiKey]; ver [effectiveGeocodingProvider].
+  final String geocodingApiKey;
 
   static String _orDefault(String value, String fallback) =>
       value.trim().isEmpty ? fallback : value.trim();
@@ -121,11 +129,16 @@ class Env {
     return mapProvider;
   }
 
-  /// Proveedor de geocoding. Sigue al de mapas, salvo en Web: la API REST de
-  /// Geocoding de Google no admite llamadas desde el navegador (CORS), así
-  /// que allí se usa Nominatim.
+  /// Proveedor de geocoding: Google solo en Android y solo con una clave
+  /// propia ([geocodingApiKey]); si no, Nominatim.
+  ///
+  /// * Web: la API REST de Geocoding de Google no admite CORS.
+  /// * Android: la API REST rechaza (REQUEST_DENIED) una clave restringida a
+  ///   la app si la petición no trae `X-Android-Package` y `X-Android-Cert`
+  ///   (QA-9e912e5). Por eso no se reutiliza la clave del mapa: hace falta
+  ///   una clave restringida por API (solo Geocoding API) y con cuota.
   MapProvider effectiveGeocodingProvider(AppPlatform platform) =>
-      platform == AppPlatform.web
-      ? MapProvider.osm
-      : effectiveMapProvider(platform);
+      platform == AppPlatform.android && geocodingApiKey.isNotEmpty
+      ? MapProvider.google
+      : MapProvider.osm;
 }

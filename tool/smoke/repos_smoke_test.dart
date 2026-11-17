@@ -7,16 +7,25 @@
 //   flutter test tool/smoke/repos_smoke_test.dart \
 //     --dart-define=SUPABASE_PUBLISHABLE_KEY=... \
 //     --dart-define=SUPABASE_SERVICE_KEY=...
+// Contra un stack aislado, agrega --dart-define=SUPABASE_URL=http://127.0.0.1:<puerto>
+// (por defecto, el local estándar http://127.0.0.1:54321).
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
+import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
+import 'package:proyecto_felix/domain/models/address.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
+import 'package:proyecto_felix/domain/models/geo.dart';
+import 'package:proyecto_felix/domain/models/pet.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const _url = 'http://127.0.0.1:54321';
+const _url = String.fromEnvironment(
+  'SUPABASE_URL',
+  defaultValue: 'http://127.0.0.1:54321',
+);
 const _key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 const _service = String.fromEnvironment('SUPABASE_SERVICE_KEY');
 const _password = 'Felix2026';
@@ -187,5 +196,73 @@ void main() {
       (await SupabaseProfileRepository(c).fetchAccount())?.vetStatus,
       VetStatus.approved,
     );
+  });
+
+  test('dueño: mascotas y direcciones con RLS real (fase 4)', () async {
+    final c = await _newUser('owner-f4');
+    final communes = await SupabaseCatalogRepository(c).communes(13);
+    await SupabaseProfileRepository(c).completeRegistration(
+      role: AppRole.owner,
+      displayName: 'Smoke Dueño F4',
+      phone: null,
+      legal: await _legal(c),
+      marketingConsent: false,
+      communeId: communes.first.id,
+    );
+    final cat = SupabaseCatalogRepository(c);
+    final species = await cat.items(CatalogKind.species);
+    final breeds = await cat.breeds(species.first.id);
+
+    final pets = SupabasePetRepository(c);
+    await pets.create(
+      PetDraft(
+        name: ' Smoke ',
+        speciesId: species.first.id,
+        breedId: breeds.isEmpty ? null : breeds.first.id,
+        birthDateApprox: DateTime(2020, 3),
+        microchip: '152000000000009',
+      ),
+    );
+    var mine = await pets.myPets();
+    expect(mine, hasLength(1));
+    expect(mine.single.name, 'Smoke', reason: 'el servidor recorta espacios');
+    expect(mine.single.speciesName, isNotNull);
+    await pets.setActive(mine.single.id, active: false);
+    mine = await pets.myPets();
+    expect(mine.single.active, isFalse);
+
+    final addresses = SupabaseAddressRepository(c);
+    // QA-F4-02: la comuna se deriva del punto (y el servidor la valida).
+    const point = GeoPoint(-33.45, -70.66);
+    final matches = await addresses.communesAt(point);
+    expect(matches.first.name, 'Santiago');
+    expect(communes.first.center, isNotNull, reason: 'centro embebido');
+    await expectLater(
+      addresses.create(
+        AddressDraft(
+          label: 'Incoherente',
+          streetText: 'Calle Smoke 1',
+          communeId: communes.firstWhere((x) => x.name == 'Alhué').id,
+          point: point,
+        ),
+      ),
+      throwsA(isA<OwnerDataFailure>()),
+    );
+    await addresses.create(
+      AddressDraft(
+        label: 'Casa',
+        streetText: 'Calle Smoke 123',
+        communeId: matches.first.communeId,
+        point: point,
+      ),
+    );
+    final addr = await addresses.myAddresses();
+    expect(addr.single.point.lat, -33.45);
+    expect(addr.single.communeName, 'Santiago');
+
+    // Otro dueño no ve nada de lo anterior.
+    final other = await _newUser('owner-f4-b');
+    expect(await SupabasePetRepository(other).myPets(), isEmpty);
+    expect(await SupabaseAddressRepository(other).myAddresses(), isEmpty);
   });
 }

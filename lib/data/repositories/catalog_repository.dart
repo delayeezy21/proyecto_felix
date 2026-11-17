@@ -1,4 +1,5 @@
 import 'package:proyecto_felix/domain/models/catalog.dart';
+import 'package:proyecto_felix/domain/models/geo.dart';
 import 'package:proyecto_felix/domain/models/pet.dart' show Breed;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,6 +10,27 @@ class CatalogFailure implements Exception {
 
   @override
   String toString() => 'CatalogFailure: $message';
+}
+
+Commune communeFromRow(Map<String, dynamic> r) {
+  // PostgREST entrega la relación 1 a 1 como objeto (o lista, según versión).
+  final raw = r['commune_boundaries'];
+  final b = switch (raw) {
+    final Map<String, dynamic> m => m,
+    final List<dynamic> l when l.isNotEmpty => l.first as Map<String, dynamic>,
+    _ => null,
+  };
+  return Commune(
+    id: r['id'] as int,
+    regionId: r['region_id'] as int,
+    name: r['name'] as String,
+    center: b == null
+        ? null
+        : GeoPoint(
+            (b['center_lat'] as num).toDouble(),
+            (b['center_lng'] as num).toDouble(),
+          ),
+  );
 }
 
 abstract interface class CatalogRepository {
@@ -65,19 +87,15 @@ class SupabaseCatalogRepository implements CatalogRepository {
 
   @override
   Future<List<Commune>> communes(int regionId) => _guard(() async {
+    // El centro viene embebido (relación 1 a 1): una sola consulta.
     final rows = await _client
         .from('communes')
-        .select('id, region_id, name')
+        .select(
+          'id, region_id, name, commune_boundaries(center_lat, center_lng)',
+        )
         .eq('region_id', regionId)
         .order('name');
-    return [
-      for (final r in rows)
-        Commune(
-          id: r['id'] as int,
-          regionId: r['region_id'] as int,
-          name: r['name'] as String,
-        ),
-    ];
+    return [for (final r in rows) communeFromRow(r)];
   });
 
   @override

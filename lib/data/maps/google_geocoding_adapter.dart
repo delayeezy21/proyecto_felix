@@ -5,9 +5,11 @@ import 'package:proyecto_felix/core/config/env.dart';
 import 'package:proyecto_felix/data/maps/geocoding_adapter.dart';
 import 'package:proyecto_felix/domain/models/geo.dart';
 
-/// Geocoding API de Google (REST). Solo en Android: en Web se usa Nominatim
-/// (ver `Env.effectiveGeocodingProvider`). La clave va por `--dart-define`
-/// y debe estar restringida por app en Google Cloud.
+/// Geocoding API de Google (REST). Solo en Android y solo con
+/// `GOOGLE_GEOCODING_API_KEY` (ver `Env.effectiveGeocodingProvider`). Esa
+/// clave se restringe por API (Geocoding) y con cuota, no por app: la API REST
+/// rechaza las claves restringidas a Android sin `X-Android-Package` y
+/// `X-Android-Cert`.
 class GoogleGeocodingAdapter implements GeocodingAdapter {
   new({required this._client, required this._apiKey});
 

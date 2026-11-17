@@ -1,0 +1,70 @@
+# Respaldo lógico semanal cifrado (docs/despliegue-beta.md, paso 11).
+#
+# Queda INERTE hasta que la variable de repositorio BACKUP_ENABLED sea 'true'.
+# El repo es público: cualquiera con cuenta de GitHub puede bajar los
+# artefactos, por eso el respaldo se cifra con una clave PÚBLICA de `age`
+# (el runner no puede descifrarlo; la clave privada vive solo offline).
+#
+# Environment "backup" (revisor obligatorio y solo la rama master; ver el runbook, paso 11):
+#   secrets: SUPABASE_BACKUP_DB_URL  (cadena del Session pooler, puerto 5432; IPv4)
+#            BACKUP_AGE_RECIPIENT    (clave pública age1...)
+name: Respaldo semanal (pg_dump cifrado)
+
+on:
+  schedule:
+    - cron: '17 7 * * 0' # domingos 07:17 UTC (04:17 en Chile, horario de verano)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: pg_dump + age
+    if: vars.BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: backup
+    env:
+      DB_URL: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+      AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          version: 3.2.0
+      - name: Instalar age
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
+      - name: Dump (roles, esquema y datos)
+        run: |
+          set -euo pipefail
+          umask 077
+          OUT="$RUNNER_TEMP/dump"
+          mkdir -p "$OUT"
+          supabase db dump --remote="$DB_URL" --role-only -f "$OUT/roles.sql"
+          supabase db dump --remote="$DB_URL" -f "$OUT/schema.sql"
+          supabase db dump --remote="$DB_URL" --data-only --use-copy -f "$OUT/data.sql"
+          # Solo tamaños en el log (nunca el contenido: los logs son públicos).
+          ls -l "$OUT"
+
+      - name: Cifrar y borrar el texto plano
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y%m%d)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          tar -C "$RUNNER_TEMP/dump" -czf - . | age -r "$AGE_RECIPIENT" -o "$RUNNER_TEMP/felix-backup-$STAMP.tar.gz.age"
+          shred -u "$RUNNER_TEMP"/dump/*.sql
+          ls -l "$RUNNER_TEMP/felix-backup-$STAMP.tar.gz.age"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: felix-backup-${{ env.STAMP }}
+          path: ${{ runner.temp }}/felix-backup-${{ env.STAMP }}.tar.gz.age
+          retention-days: 90
+          if-no-files-found: error

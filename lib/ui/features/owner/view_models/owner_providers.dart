@@ -28,19 +28,14 @@ final FutureProviderFamily<List<Breed>, int> breedsProvider =
           ref.watch(catalogRepositoryProvider).breeds(speciesId),
     );
 
-/// Centro aproximado de una comuna, para acercar el mapa al elegirla. Queda
-/// en caché (no se repite la consulta al volver a elegirla).
-final FutureProviderFamily<GeoPoint?, String> communeCenterProvider =
-    FutureProvider.family<GeoPoint?, String>((ref, commune) async {
-      try {
-        final r = await ref
-            .read(geocodingAdapterProvider)
-            .search('$commune, Chile');
-        return r.isEmpty ? null : r.first.point;
-      } on GeocodingFailure {
-        return null;
-      }
-    });
+/// Comunas compatibles con un punto marcado (QA-F4-02), según los límites
+/// comunales del servidor. La primera es la más probable; vacía = fuera de
+/// Chile.
+final FutureProviderFamily<List<CommuneMatch>, GeoPoint>
+communesAtPointProvider = FutureProvider.autoDispose
+    .family<List<CommuneMatch>, GeoPoint>(
+      (ref, point) => ref.watch(addressRepositoryProvider).communesAt(point),
+    );
 
 /// Búsqueda de direcciones con debounce: solo consulta al proveedor cuando el
 /// usuario deja de escribir [debounce] (Nominatim prohíbe el uso intensivo).

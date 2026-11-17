@@ -22,7 +22,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 
 ## Decisiones no obvias
 - Windows usa siempre OpenStreetMap (`google_maps_flutter` no soporta Windows) y no tiene FCM: allí los avisos van por Realtime dentro de la app. iOS también usa OSM hasta probar la clave nativa en un Mac, y el geocoding en Web siempre es Nominatim (Google REST no admite CORS).
-- Mascotas y direcciones: solo las ve su dueño (el admin tampoco, por minimización). `addresses.location` es columna generada desde `lat`/`lng`. Tiles OSM por `OSM_TILE_URL` (los públicos solo para desarrollo).
+- Mascotas y direcciones: solo las ve su dueño (el admin tampoco, por minimización). `addresses.location` es columna generada desde `lat`/`lng`, validada contra `commune_boundaries` (BCN vía geoBoundaries, CC BY 3.0 IGO; margen de 2,5 km). Tiles OSM por `OSM_TILE_URL` (los públicos solo para desarrollo). El geocoding de Google requiere `GOOGLE_GEOCODING_API_KEY` propia; si no hay, Nominatim.
 - La UI nunca llama a Supabase directo: Vista → ViewModel (Riverpod) → Repositorio → Servicio.
 - Los mapas y el geocoding solo se usan vía `MapAdapter` / `GeocodingAdapter`.
 - Los precios se calculan solo en el servidor (`quote_visit` → fila inmutable en `quotes`); la fase 6 la congela en `visits.quote` vía `private.consume_quote`. Pago al vet = servicio − comisión (redondeo `private.clp_round`, mitad hacia arriba).
