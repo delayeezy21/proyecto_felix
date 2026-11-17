@@ -14,6 +14,7 @@ import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
+import 'package:proyecto_felix/data/services/recovery_flag_store.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/geo.dart';
@@ -216,6 +217,7 @@ Widget testApp({
   MapAdapter? map,
   FakeQuoteRepository? quotes,
   FakeFoundationRepository? foundations,
+  FakeRecoveryFlagStore? recoveryStore,
   Env env = configuredEnv,
 }) => ProviderScope(
   overrides: [
@@ -239,6 +241,9 @@ Widget testApp({
     quoteRepositoryProvider.overrideWithValue(quotes ?? FakeQuoteRepository()),
     foundationRepositoryProvider.overrideWithValue(
       foundations ?? FakeFoundationRepository(),
+    ),
+    recoveryFlagStoreProvider.overrideWithValue(
+      recoveryStore ?? FakeRecoveryFlagStore(),
     ),
   ],
   child: const FelixApp(),
@@ -661,4 +666,17 @@ class FakeUrlOpener implements UrlOpener {
     opened.add(url);
     return true;
   }
+}
+
+/// Marca de recuperación en memoria (simula el almacenamiento local).
+class FakeRecoveryFlagStore implements RecoveryFlagStore {
+  new({this.userId});
+
+  String? userId;
+
+  @override
+  Future<String?> read() async => userId;
+
+  @override
+  Future<void> write(String? userId) async => this.userId = userId;
 }
