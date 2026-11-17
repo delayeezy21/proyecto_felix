@@ -9,6 +9,7 @@ abstract final class AppRoutes {
   static const owner = '/owner';
   static const ownerPetNew = '/owner/pets/new';
   static const ownerAddressNew = '/owner/addresses/new';
+  static const ownerProfile = '/owner/profile';
   static String ownerPet(String id) => '/owner/pets/$id';
   static String ownerAddress(String id) => '/owner/addresses/$id';
   static const vet = '/vet';

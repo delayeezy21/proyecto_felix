@@ -8,12 +8,13 @@ import 'package:proyecto_felix/ui/features/admin/views/admin_home_view.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_vet_review_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/login_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/sign_up_view.dart';
-import 'package:proyecto_felix/ui/features/home/views/role_home_view.dart';
+import 'package:proyecto_felix/ui/features/foundation/views/foundation_home_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/session_error_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/splash_view.dart';
 import 'package:proyecto_felix/ui/features/onboarding/views/onboarding_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/address_form_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_home_view.dart';
+import 'package:proyecto_felix/ui/features/owner/views/owner_profile_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/pet_form_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_profile_view.dart';
 
@@ -70,6 +71,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 PetFormView(petId: state.pathParameters['id']),
           ),
           GoRoute(
+            path: 'profile',
+            builder: (context, state) => const OwnerProfileView(),
+          ),
+          GoRoute(
             path: 'addresses/new',
             builder: (context, state) => const AddressFormView(),
           ),
@@ -103,10 +108,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.foundation,
-        builder: (context, state) => const RoleHomeView(
-          title: 'Fundación',
-          message: 'Aquí verás los aportes recibidos.',
-        ),
+        builder: (context, state) => const FoundationHomeView(),
       ),
     ],
   );

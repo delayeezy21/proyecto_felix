@@ -8,17 +8,19 @@ import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/admin/view_models/admin_catalog_providers.dart';
+import 'package:proyecto_felix/ui/features/admin/views/admin_foundations_tab.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_vet_review_view.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 
-/// Panel del administrador: catálogos, tarifas, parámetros y clínicas 24 h.
+/// Panel del administrador: catálogos, tarifas, parámetros, clínicas 24 h y
+/// fundaciones.
 class AdminHomeView extends ConsumerWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Administración'),
@@ -49,6 +51,10 @@ class AdminHomeView extends ConsumerWidget {
                 icon: Icon(Icons.local_hospital_outlined),
                 text: 'Clínicas 24 h',
               ),
+              Tab(
+                icon: Icon(Icons.volunteer_activism_outlined),
+                text: 'Fundaciones',
+              ),
             ],
           ),
         ),
@@ -60,6 +66,7 @@ class AdminHomeView extends ConsumerWidget {
             _TariffsTab(),
             _PricingTab(),
             _ClinicsTab(),
+            AdminFoundationsTab(),
           ],
         ),
       ),

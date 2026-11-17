@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
+import 'package:proyecto_felix/data/repositories/pricing_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
@@ -34,6 +35,14 @@ final petRepositoryProvider = Provider<PetRepository>(
 
 final addressRepositoryProvider = Provider<AddressRepository>(
   (ref) => SupabaseAddressRepository(ref.watch(supabaseClientProvider)),
+);
+
+final quoteRepositoryProvider = Provider<QuoteRepository>(
+  (ref) => SupabaseQuoteRepository(ref.watch(supabaseClientProvider)),
+);
+
+final foundationRepositoryProvider = Provider<FoundationRepository>(
+  (ref) => SupabaseFoundationRepository(ref.watch(supabaseClientProvider)),
 );
 
 /// Sesión actual: autenticación + cuenta (rol y perfil).

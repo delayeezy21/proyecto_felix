@@ -49,7 +49,9 @@ select is_empty(
        and p.proname not in ('current_app_role', 'is_admin', 'touch_updated_at',
                               'current_vet_status', 'vet_can_edit_application',
                               'vet_in_review', 'has_current_terms',
-                              'assert_vet_requirements') $$,
+                              'assert_vet_requirements', 'current_foundation_id',
+                              'create_quote', 'pay_quote_simulated',
+                              'foundation_monthly_totals') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 
