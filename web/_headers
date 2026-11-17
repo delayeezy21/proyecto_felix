@@ -1,0 +1,35 @@
+# Cabeceras de Cloudflare Pages (flutter build web copia este archivo a build/web).
+# Ver docs/despliegue-beta.md, paso 8.
+#
+# Flutter Web NO pone hash en los nombres (main.dart.js, flutter_bootstrap.js,
+# assets/...): por eso todo se revalida siempre (no-cache = usa ETag y responde
+# 304 si no cambió). Solo CanvasKit e íconos tienen caché corta.
+# El fallback SPA es automático: sin 404.html en la raíz, Pages sirve index.html.
+#
+# CSP en modo Report-Only (solo avisa en la consola; no se probó en un navegador
+# real). Para hacerla obligatoria, ver docs/despliegue-beta.md, paso 8.4:
+# recorrer la app sin avisos "[Report Only]" y renombrar la cabecera a
+# Content-Security-Policy. 'wasm-unsafe-eval' es para CanvasKit/Skwasm; gstatic
+# sirve CanvasKit y fuentes; los tiles van en connect-src e img-src porque
+# Flutter los descarga con fetch.
+
+/*
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(self), payment=()
+  Strict-Transport-Security: max-age=31536000
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com https://maps.googleapis.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://tiles.stadiamaps.com https://api.maptiler.com https://*.googleapis.com https://www.gstatic.com https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://tiles.stadiamaps.com https://api.maptiler.com https://*.googleapis.com https://*.gstatic.com https://*.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self' blob:; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+
+/canvaskit/*
+  ! Cache-Control
+  Cache-Control: public, max-age=86400
+
+/icons/*
+  ! Cache-Control
+  Cache-Control: public, max-age=86400
+
+/favicon.png
+  ! Cache-Control
+  Cache-Control: public, max-age=86400

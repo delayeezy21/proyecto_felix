@@ -1,0 +1,113 @@
+# Build de Flutter Web y despliegue en Cloudflare Pages (docs/despliegue-beta.md, paso 8).
+# SOLO manual. Requiere el GitHub Environment elegido (beta | production) con:
+#   vars:    SUPABASE_URL, CLOUDFLARE_PAGES_PROJECT, MAP_PROVIDER (opcional), GOOGLE_AUTH_ENABLED (opcional)
+#   secrets: SUPABASE_PUBLISHABLE_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, MAPS_API_KEY_WEB (opcional)
+# La clave secreta/service_role de Supabase NUNCA va aquí: el paso de validación la rechaza.
+name: Deploy Web (Cloudflare Pages)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente de destino
+        type: choice
+        options: [beta, production]
+        default: beta
+      confirm:
+        description: 'Escribe exactamente: DESPLEGAR <ambiente> (ej.: DESPLEGAR beta)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Confirmación
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar confirmación (falla en rojo si no coincide)
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          TARGET: ${{ inputs.environment }}
+        run: |
+          if [ "$CONFIRM" != "DESPLEGAR $TARGET" ]; then
+            echo "::error::Confirmación incorrecta: escribe 'DESPLEGAR $TARGET'"; exit 1
+          fi
+
+  deploy:
+    name: Build y deploy (${{ inputs.environment }})
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: 3.47.9
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+      - name: Generar el archivo de entorno del build (no se versiona)
+        env:
+          APP_ENV: ${{ inputs.environment }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          MAP_PROVIDER: ${{ vars.MAP_PROVIDER || 'osm' }}
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY_WEB }}
+          GOOGLE_AUTH_ENABLED: ${{ vars.GOOGLE_AUTH_ENABLED || 'false' }}
+          # Solo si la API usa un dominio propio en vez de *.supabase.co (QA-31).
+          FELIX_ALLOWED_API_HOSTS: ${{ vars.FELIX_ALLOWED_API_HOSTS }}
+        run: |
+          umask 077
+          {
+            echo "APP_ENV=${APP_ENV}"
+            echo "SUPABASE_URL=${SUPABASE_URL}"
+            echo "SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+            echo "MAP_PROVIDER=${MAP_PROVIDER}"
+            echo "MAPS_API_KEY=${MAPS_API_KEY}"
+            echo "GOOGLE_AUTH_ENABLED=${GOOGLE_AUTH_ENABLED}"
+          } > "$RUNNER_TEMP/build.env"
+          node tool/env/validar_env.mjs "$RUNNER_TEMP/build.env"
+
+      - name: flutter build web
+        run: |
+          flutter build web --release \
+            --base-href / \
+            --dart-define-from-file="$RUNNER_TEMP/build.env"
+          rm -f "$RUNNER_TEMP/build.env"
+
+      - name: Revisar el build (cabeceras, fallback SPA y secretos)
+        run: |
+          test -f build/web/_headers || { echo "Falta build/web/_headers"; exit 1; }
+          # Sin 404.html en la raíz, Cloudflare Pages sirve index.html en
+          # cualquier ruta (fallback SPA para go_router).
+          if [ -f build/web/404.html ]; then echo "404.html desactiva el fallback SPA"; exit 1; fi
+          # (supabase_flutter contiene el literal "sb_secret_" para validar
+          # prefijos; solo falla si va seguido de una clave real).
+          if grep -rlE 'sb_secret_[A-Za-z0-9]' build/web; then
+            echo "El build contiene una clave secreta"; exit 1
+          fi
+          # 54321 = API local. (54324, Mailpit, aparece en un aviso que solo se
+          # muestra con backend local.)
+          if grep -lE '(127\.0\.0\.1|localhost):54321' build/web/main.dart.js; then
+            echo "El build apunta a un Supabase local"; exit 1
+          fi
+
+      - name: Deploy a Cloudflare Pages
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy build/web --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=main --commit-dirty=true

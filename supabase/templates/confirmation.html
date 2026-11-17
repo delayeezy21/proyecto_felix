@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:24px;background:#f4f7f6;font-family:Arial,Helvetica,sans-serif;color:#1d2a27;">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:12px;padding:28px;">
+    <h1 style="font-size:20px;color:#1f5f52;margin:0 0 16px;">Felix &middot; Confirma tu correo</h1>
+    <p style="font-size:15px;line-height:1.5;">¡Hola! Para activar tu cuenta en Felix, confirma tu correo.</p>
+    <p style="margin:24px 0;">
+      <a href="{{ .ConfirmationURL }}"
+         style="background:#1f5f52;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;">Confirmar mi correo</a>
+    </p>
+    <p style="font-size:13px;color:#5b6b67;line-height:1.5;">Si el botón no funciona, copia este enlace en tu navegador:<br>{{ .ConfirmationURL }}</p>
+    <p style="font-size:13px;color:#5b6b67;line-height:1.5;">Si no creaste una cuenta en Felix, ignora este mensaje.</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,107 @@
+# Migraciones a la nube (docs/despliegue-beta.md, pasos 3 y 4). SOLO manual.
+#
+# 1. guard:  exige escribir "MIGRAR <ambiente>".
+# 2. pgtap:  levanta un Supabase efímero en el runner y corre pgTAP + advisors + E2E.
+# 3. migrate: en el GitHub Environment elegido (configura "production" con
+#    revisores obligatorios): dry-run, `db push --remote` (SIN seed.sql) y,
+#    si se pide, deploy de Edge Functions.
+#
+# Environment (beta | production):
+#   vars:    SUPABASE_PROJECT_REF
+#   secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD
+name: Migrar base de datos (nube)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente de destino
+        type: choice
+        options: [beta, production]
+        default: beta
+      deploy_functions:
+        description: Desplegar también las Edge Functions
+        type: boolean
+        default: false
+      confirm:
+        description: 'Escribe exactamente: MIGRAR <ambiente> (ej.: MIGRAR beta)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-migrate-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Confirmación
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar confirmación
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          TARGET: ${{ inputs.environment }}
+        run: |
+          if [ "$CONFIRM" != "MIGRAR $TARGET" ]; then
+            echo "Confirmación incorrecta: escribe 'MIGRAR $TARGET'"; exit 1
+          fi
+
+  pgtap:
+    name: pgTAP + advisors + E2E (Supabase efímero)
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          version: 3.2.0
+      # Igual que la nube: solo migraciones, sin seed.sql (QA-26).
+      - name: Desactivar seed.sql en este runner
+        run: |
+          sed -i '/^\[db\.seed\]/,/^\[/ s/^enabled = true/enabled = false/' supabase/config.toml
+          sed -n '/^\[db\.seed\]/,/^sql_paths/p' supabase/config.toml | grep -q '^enabled = false' \
+            || { echo "::error::No se pudo desactivar [db.seed]"; exit 1; }
+      - name: supabase start (con un reintento)
+        run: supabase start || { supabase stop --no-backup; sleep 15; supabase start; }
+      - run: supabase test db
+      - run: supabase db advisors --fail-on warn
+      - name: E2E Auth + REST
+        run: node tool/e2e/auth_e2e.mjs "$(supabase status -o json | sed -n '/^{/,$p')"
+      - name: E2E onboarding de vets
+        run: node tool/e2e/vet_e2e.mjs "$(supabase status -o json | sed -n '/^{/,$p')"
+
+  migrate:
+    name: db push (${{ inputs.environment }})
+    needs: pgtap
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: ${{ inputs.environment }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_YES: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          version: 3.2.0
+      - name: Link (vía pooler IPv4)
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Migraciones pendientes
+        run: supabase migration list --remote --password "$SUPABASE_DB_PASSWORD"
+      - name: Dry run
+        run: supabase db push --remote --dry-run --password "$SUPABASE_DB_PASSWORD"
+      # Sin --include-seed: seed.sql es solo demo local.
+      - name: db push
+        run: supabase db push --remote --password "$SUPABASE_DB_PASSWORD" --yes
+      - name: Advisors del proyecto (informativo)
+        run: supabase db advisors --remote --level warn
+      - name: Deploy de Edge Functions
+        if: inputs.deploy_functions
+        run: supabase functions deploy --use-api --yes

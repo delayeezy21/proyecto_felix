@@ -7,6 +7,8 @@
 //   flutter test tool/smoke/repos_smoke_test.dart \
 //     --dart-define=SUPABASE_PUBLISHABLE_KEY=... \
 //     --dart-define=SUPABASE_SERVICE_KEY=...
+// Contra un stack aislado, agrega --dart-define=SUPABASE_URL=http://127.0.0.1:<puerto>
+// (por defecto, el local estándar http://127.0.0.1:54321).
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
@@ -16,7 +18,10 @@ import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const _url = 'http://127.0.0.1:54321';
+const _url = String.fromEnvironment(
+  'SUPABASE_URL',
+  defaultValue: 'http://127.0.0.1:54321',
+);
 const _key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 const _service = String.fromEnvironment('SUPABASE_SERVICE_KEY');
 const _password = 'Felix2026';
