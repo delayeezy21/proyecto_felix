@@ -8,6 +8,15 @@ import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 
 const BATCH = 100;
 
+// deno-lint-ignore no-explicit-any
+async function purgeOrphans(db: any): Promise<number> {
+  const { data } = await db.rpc('purge_orphan_candidates', { p_limit: BATCH });
+  const names = (data ?? []).map((o: { name: string }) => o.name);
+  if (names.length === 0) return 0;
+  const { error } = await db.storage.from('vet-documents').remove(names);
+  return error ? 0 : names.length;
+}
+
 Deno.serve(async (req) => {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const auth = req.headers.get('Authorization') ?? '';
@@ -19,18 +28,13 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const { data: due, error } = await db
-    .from('vet_documents')
-    .select('id, storage_path')
-    .is('purged_at', null)
-    .not('storage_path', 'is', null)
-    .lte('purge_after', new Date().toISOString())
-    .limit(BATCH);
+  // Documentos vencidos de solicitudes que NO están en revisión (QA-06).
+  const { data: due, error } = await db.rpc('purge_candidates', { p_limit: BATCH });
   if (error) {
     return new Response(JSON.stringify({ error: 'query_failed' }), { status: 500 });
   }
   if (!due || due.length === 0) {
-    return Response.json({ purged: 0 });
+    return Response.json({ purged: 0, orphans: await purgeOrphans(db) });
   }
 
   const paths = due.map((d) => d.storage_path as string);
@@ -47,6 +51,9 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'update_failed' }), { status: 500 });
   }
 
-  // Sin datos personales en la respuesta ni en logs: solo la cantidad.
-  return Response.json({ purged: due.length });
+  // Huérfanos: archivos subidos cuyo registro falló (más de 24 h).
+  const orphans = await purgeOrphans(db);
+
+  // Sin datos personales en la respuesta ni en logs: solo cantidades.
+  return Response.json({ purged: due.length, orphans });
 });

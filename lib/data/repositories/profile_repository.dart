@@ -122,8 +122,10 @@ class SupabaseProfileRepository implements ProfileRepository {
     } on PostgrestException catch (e) {
       throw ProfileFailure(switch (e.code) {
         '23505' => 'Tu cuenta ya completó el registro.',
-        '22023' =>
+        // Los mensajes de validación de la BD ya vienen en español (QA-11).
+        '22023' when e.message.startsWith('Versión') =>
           'Los términos o la política cambiaron. Vuelve a abrir el registro.',
+        '22023' => e.message,
         _ => 'No se pudo completar el registro. Inténtalo de nuevo.',
       });
     }

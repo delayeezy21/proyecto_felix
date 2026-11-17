@@ -76,7 +76,7 @@ class _Body extends ConsumerWidget {
               const SizedBox(height: 12),
               _ProfessionalDataCard(profile: profile),
               const SizedBox(height: 12),
-              const _SpeciesSpecialtiesCard(),
+              _SpeciesSpecialtiesCard(locked: profile.inReview),
               const SizedBox(height: 12),
               const _AvailabilityCard(),
               const SizedBox(height: 12),
@@ -258,6 +258,7 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
   void _onEdited() {
     if (!_dirty) return;
     setState(() => _saveState = _SaveState.pending);
+    ref.read(vetDataDirtyProvider.notifier).dirty = true;
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 900), _autoSave);
   }
@@ -273,6 +274,7 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
       await _persist();
       if (!mounted) return;
       setState(() => _saveState = _SaveState.saved);
+      ref.read(vetDataDirtyProvider.notifier).dirty = false;
       ref.invalidate(vetProfileProvider);
     } on Object {
       if (mounted) setState(() => _saveState = _SaveState.error);
@@ -315,6 +317,7 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
         _saving = false;
         _saveState = ok ? _SaveState.saved : _SaveState.error;
       });
+      if (ok) ref.read(vetDataDirtyProvider.notifier).dirty = false;
     }
   }
 
@@ -448,7 +451,10 @@ class _ProfessionalDataCardState extends ConsumerState<_ProfessionalDataCard> {
 // ---------------------------------------------------------------------------
 
 class _SpeciesSpecialtiesCard extends ConsumerWidget {
-  const new();
+  const new({required this.locked});
+
+  /// En revisión no se cambian (el admin revisa lo enviado). QA-12.
+  final bool locked;
 
   Widget _chips(
     BuildContext context,
@@ -469,11 +475,17 @@ class _SpeciesSpecialtiesCard extends ConsumerWidget {
             key: Key('chip-${kind.name}-${item.slug}'),
             label: Text(item.name),
             selected: selected.contains(item.id),
-            onSelected: (on) async {
-              final next = {...selected};
-              on ? next.add(item.id) : next.remove(item.id);
-              await runWithFeedback(context, () => save(next), onDone: refresh);
-            },
+            onSelected: locked
+                ? null
+                : (on) async {
+                    final next = {...selected};
+                    on ? next.add(item.id) : next.remove(item.id);
+                    await runWithFeedback(
+                      context,
+                      () => save(next),
+                      onDone: refresh,
+                    );
+                  },
           ),
       ],
     );
@@ -484,7 +496,9 @@ class _SpeciesSpecialtiesCard extends ConsumerWidget {
     final repo = ref.watch(vetRepositoryProvider);
     return _Section(
       title: 'Especies y especialidades',
-      subtitle: 'Solo recibirás solicitudes que coincidan con lo que marques.',
+      subtitle: locked
+          ? 'Bloqueadas mientras tu solicitud está en revisión.'
+          : 'Solo recibirás solicitudes que coincidan con lo que marques.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -711,7 +725,8 @@ class _DocumentsCardState extends ConsumerState<_DocumentsCard> {
       subtitle: allPurged
           ? 'Tus documentos ya fueron verificados y eliminados por privacidad.'
           : 'PDF, JPG o PNG de hasta 5 MB. Solo los ve el equipo que verifica '
-                'y se eliminan 7 días después de la revisión.',
+                'y se eliminan 7 días después de la aprobación '
+                '(30 si se rechaza).',
       child: Column(
         children: [
           for (final kind in VetDocumentKind.values)
@@ -804,6 +819,7 @@ class _SubmitCard extends ConsumerWidget {
       documents: ref.watch(vetDocumentsProvider).value ?? const [],
     );
     final declared = profile.declarationAcceptedAt != null;
+    final savingData = ref.watch(vetDataDirtyProvider);
 
     return _Section(
       title: 'Declaración y envío',
@@ -825,6 +841,13 @@ class _SubmitCard extends ConsumerWidget {
             title: const Text(declarationText),
           ),
           const SizedBox(height: 8),
+          if (savingData) ...[
+            const Text(
+              'Guardando tus datos profesionales…',
+              key: Key('vet-saving-before-submit'),
+            ),
+            const SizedBox(height: 8),
+          ],
           if (missing.isNotEmpty) ...[
             Text(
               'Te falta: ${missing.join(' · ')}',
@@ -835,7 +858,7 @@ class _SubmitCard extends ConsumerWidget {
           ],
           FilledButton(
             key: const Key('vet-submit'),
-            onPressed: missing.isEmpty
+            onPressed: missing.isEmpty && !savingData
                 ? () => runWithFeedback(
                     context,
                     repo.submitApplication,

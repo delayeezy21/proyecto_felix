@@ -269,6 +269,8 @@ class SupabaseVetRepository implements VetRepository {
               Uint8List.fromList(file.bytes),
               fileOptions: FileOptions(contentType: file.mime),
             );
+        // Si el registro falla, el archivo queda huérfano y la purga del
+        // servidor lo borra pasadas 24 h (el vet no borra archivos; QA-06).
         await _client.from('vet_documents').insert({
           'vet_id': _uid,
           'kind': kind.dbValue,

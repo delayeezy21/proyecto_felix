@@ -72,6 +72,5 @@ void main() {
         reason: 'la solicitud está en revisión: el admin revisa lo enviado',
       );
     },
-    skip: true, // QA-12 abierto: quitar al corregir.
   );
 }

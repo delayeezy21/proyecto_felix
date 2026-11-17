@@ -48,3 +48,17 @@ const declarationText =
     'Chile), que los documentos que subo son auténticos y que la información '
     'entregada es verídica. Entiendo que entregar información falsa causa el '
     'rechazo o la suspensión de mi cuenta y puede tener consecuencias legales.';
+
+/// ¿Hay cambios en los datos profesionales aún sin guardar? Mientras sea true
+/// no se envía la solicitud, para no perder el último cambio (QA-13).
+class VetDataDirty extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  bool get dirty => state;
+  set dirty(bool value) => state = value;
+}
+
+final vetDataDirtyProvider = NotifierProvider<VetDataDirty, bool>(
+  VetDataDirty.new,
+);

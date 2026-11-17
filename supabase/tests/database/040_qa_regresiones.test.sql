@@ -55,7 +55,6 @@ insert into public.vet_specialties (vet_id, specialty_id)
   select '00000000-0000-0000-0000-0000000004b1', id from public.specialties where slug = 'general';
 
 -- QA-06: retención de documentos de una solicitud nunca enviada.
-select todo('QA-06: documentos sin enviar no tienen plazo de purga', 1);
 select ok(
   (select bool_and(purge_after is not null) from public.vet_documents
    where vet_id = '00000000-0000-0000-0000-0000000004b1'),
@@ -69,7 +68,6 @@ update public.vet_profiles
 select ok(public.submit_vet_application() is not null, 'el vet QA envía su solicitud');
 
 -- QA-02: lo enviado no se puede alterar mientras está en revisión.
-select todo('QA-02: el guardián no bloquea la declaración ni las especies en revisión', 3);
 select throws_ok(
   $$ update public.vet_profiles set declaration_accepted_at = null
      where user_id = '00000000-0000-0000-0000-0000000004b1' $$,
@@ -84,7 +82,6 @@ select is_empty(
   'QA-02: en revisión no se quitan las especies enviadas');
 
 -- QA-03: en revisión no se agregan documentos.
-select todo('QA-03: se aceptan documentos nuevos con la solicitud en revisión', 1);
 select throws_ok(
   $$ insert into public.vet_documents (vet_id, kind, storage_path, mime, size_bytes)
      values ('00000000-0000-0000-0000-0000000004b1', 'other',
@@ -95,7 +92,6 @@ reset role;
 -- QA-02 (aprobado): la evidencia de la verificación es inmutable.
 select pg_temp.login('00000000-0000-0000-0000-0000000004b2');
 set local role authenticated;
-select todo('QA-02: un vet aprobado puede borrar su declaración jurada', 1);
 select throws_ok(
   $$ update public.vet_profiles set declaration_accepted_at = null
      where user_id = '00000000-0000-0000-0000-0000000004b2' $$,
@@ -109,7 +105,6 @@ reset role;
 -- QA-01: registro sin pasar por complete_registration (sin términos).
 select pg_temp.login('00000000-0000-0000-0000-0000000004a2');
 set local role authenticated;
-select todo('QA-01: user_roles y perfiles se pueden insertar directo, sin términos', 1);
 select throws_ok(
   $$ insert into public.user_roles (user_id, role)
      values ('00000000-0000-0000-0000-0000000004a2', 'owner') $$,
@@ -126,12 +121,10 @@ reset role;
 -- QA-04 y QA-05: dueño.
 select pg_temp.login('00000000-0000-0000-0000-0000000004a1');
 set local role authenticated;
-select todo('QA-04: la comuna del dueño se puede dejar en null', 1);
 select throws_ok(
   $$ update public.owner_profiles set commune_id = null
      where user_id = '00000000-0000-0000-0000-0000000004a1' $$,
   null, null, 'QA-04: la comuna del dueño sigue siendo obligatoria al editar');
-select todo('QA-05: el retiro de un consentimiento se puede reescribir', 1);
 select is_empty(
   $$ update public.consents set revoked_at = '2099-01-01'
      where user_id = '00000000-0000-0000-0000-0000000004a1' returning id $$,
@@ -139,7 +132,6 @@ select is_empty(
 reset role;
 
 -- QA-10: borrar la cuenta de un admin que verificó vets.
-select todo('QA-10: el guardián bloquea el ON DELETE SET NULL de verified_by', 1);
 select lives_ok(
   $$ delete from auth.users where id = '00000000-0000-0000-0000-0000000004c1' $$,
   'QA-10: se puede borrar la cuenta de un admin que aprobó vets');
