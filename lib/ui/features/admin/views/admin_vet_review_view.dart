@@ -343,6 +343,8 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
                     const SizedBox(height: 8),
                     TextField(
                       key: const Key('review-notes'),
+                      // Checklist ~250 caracteres; la BD admite 1000 (QA-08/QA-18).
+                      maxLength: 500,
                       controller: _notes,
                       maxLines: 2,
                       decoration: const InputDecoration(

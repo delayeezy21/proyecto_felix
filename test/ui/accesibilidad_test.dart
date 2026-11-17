@@ -188,5 +188,5 @@ void main() {
       500,
       reason: 'checklist (~250) + notas debe caber en review_notes (≤ 1000)',
     );
-  }, skip: true); // QA-18 abierto: quitar al corregir.
+  });
 }
