@@ -165,8 +165,8 @@ reset role;
 select ok(exists (
     select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private' and p.proname = 'find_available_vets'
-      and pg_get_functiondef(p.oid) like '%operator(extensions.<->)%limit 30%'),
-  'preselección KNN de 30 candidatos antes de calcular horarios');
+      and pg_get_functiondef(p.oid) like '%operator(extensions.<->)%exit when v_found >= 20%'),
+  'candidatos por KNN y horarios calculados solo hasta reunir 20');
 update private.search_quota set calls = 30, window_start = now()
   where user_id = '00000000-0000-0000-0000-00000000a6a1';
 select pg_temp.login('00000000-0000-0000-0000-00000000a6a1');
