@@ -15,8 +15,13 @@ abstract final class AppRoutes {
   static const ownerProfile = '/owner/profile';
   static String ownerPet(String id) => '/owner/pets/$id';
   static String ownerAddress(String id) => '/owner/addresses/$id';
+  static const ownerBook = '/owner/book';
+  static String ownerVisit(String id) => '/owner/visits/$id';
+  static String ownerVisitPay(String id) => '/owner/visits/$id/pay';
   static const vet = '/vet';
   static const vetPending = '/vet/pending';
+  static const vetVisits = '/vet/visits';
+  static const vetBase = '/vet/base';
   static const admin = '/admin';
   static const foundation = '/foundation';
 

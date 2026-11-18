@@ -17,10 +17,14 @@ import 'package:proyecto_felix/ui/features/home/views/session_error_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/splash_view.dart';
 import 'package:proyecto_felix/ui/features/onboarding/views/onboarding_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/address_form_view.dart';
+import 'package:proyecto_felix/ui/features/owner/views/book_visit_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_home_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_profile_view.dart';
+import 'package:proyecto_felix/ui/features/owner/views/owner_visit_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/pet_form_view.dart';
+import 'package:proyecto_felix/ui/features/vet/views/vet_base_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_profile_view.dart';
+import 'package:proyecto_felix/ui/features/vet/views/vet_visits_view.dart';
 
 /// Router con protección por sesión y rol (ver `AppRoutes.redirect`).
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -103,6 +107,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) =>
                 AddressFormView(addressId: state.pathParameters['id']),
           ),
+          GoRoute(
+            path: 'book',
+            builder: (context, state) => const BookVisitView(),
+          ),
+          GoRoute(
+            path: 'visits/:id',
+            builder: (context, state) =>
+                OwnerVisitView(visitId: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'pay',
+                builder: (context, state) =>
+                    VisitPaymentView(visitId: state.pathParameters['id']!),
+              ),
+            ],
+          ),
         ],
       ),
       GoRoute(
@@ -112,6 +132,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'pending',
             builder: (context, state) => const VetProfileView(),
+          ),
+          GoRoute(
+            path: 'visits',
+            builder: (context, state) => const VetVisitsView(),
+          ),
+          GoRoute(
+            path: 'base',
+            builder: (context, state) => const VetBaseView(),
           ),
         ],
       ),

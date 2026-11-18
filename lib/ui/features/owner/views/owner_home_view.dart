@@ -10,9 +10,10 @@ import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 import 'package:proyecto_felix/ui/features/owner/view_models/owner_providers.dart';
+import 'package:proyecto_felix/ui/features/owner/views/owner_visits_tab.dart';
 import 'package:proyecto_felix/ui/features/owner/views/quote_view.dart';
 
-/// Inicio del dueño: sus mascotas y sus direcciones.
+/// Inicio del dueño: mascotas, direcciones, cotizar y visitas.
 class OwnerHomeView extends ConsumerWidget {
   const new({super.key});
 
@@ -23,7 +24,7 @@ class OwnerHomeView extends ConsumerWidget {
       _ => '',
     };
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Inicio'),
@@ -48,6 +49,7 @@ class OwnerHomeView extends ConsumerWidget {
               Tab(icon: Icon(Icons.pets), text: 'Mascotas'),
               Tab(icon: Icon(Icons.home_outlined), text: 'Direcciones'),
               Tab(icon: Icon(Icons.request_quote_outlined), text: 'Cotizar'),
+              Tab(icon: Icon(Icons.event_note_outlined), text: 'Visitas'),
             ],
           ),
         ),
@@ -56,6 +58,7 @@ class OwnerHomeView extends ConsumerWidget {
             _PetsTab(greeting: name),
             const _AddressesTab(),
             const QuotePanel(),
+            const OwnerVisitsTab(),
           ],
         ),
       ),
