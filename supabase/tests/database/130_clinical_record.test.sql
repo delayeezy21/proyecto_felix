@@ -4,7 +4,7 @@
 -- sentencia en una subtransacción y la deshace: devuelve el valor (o 'ok'),
 -- 'denied' (42501) o 'err:<sqlstate>'.
 begin;
-select plan(54);
+select plan(59);
 
 -- Fixtures (sin triggers; luego se vuelve a `origin`) -----------------------
 insert into auth.users (id, email)
@@ -456,6 +456,36 @@ reset role;
 select pg_temp.login('a01');
 select throws_ok($$ select public.admin_record_stats() $$, '42501', null,
   'solo el admin ve los conteos');
+reset role;
+
+-- Revisión de privacidad (B1, B4, B6, B10) ---------------------------------
+select pg_temp.login('a02');
+select throws_ok($$ select public.add_clinical_entry('00000000-0000-0000-0000-0000000c7e01',
+  'note', 'x', null, null, null, '00000000-0000-0000-0000-0000000c7ee2') $$, '42501',
+  'No tienes permiso para esta acción',
+  'B1: sin autorización, el mismo error genérico (no revela si la entrada existe)');
+select throws_ok($$ insert into public.entry_attachments (entry_id, storage_path, file_name, mime,
+  size_bytes) values ('00000000-0000-0000-0000-0000000c7ee2', 'pets/x/y/z.pdf', 'z.pdf',
+  'application/pdf', 1) $$, '42501', 'No tienes permiso para esta acción',
+  'B1: registrar un adjunto ajeno no revela si el archivo existe ni cuántos hay');
+reset role;
+select pg_temp.login('f04');
+select is((select count(*)::int from public.record_access_grants), 0,
+  'B6: el vet no lee las autorizaciones (ni las propias)');
+reset role;
+select pg_temp.login('a01');
+select isnt(pg_temp.try('with d as (delete from storage.objects where bucket_id = '
+  || '''clinical-attachments'' returning 1) select count(*) from d'), '1',
+  'B10: el dueño no borra archivos del bucket');
+reset role;
+-- B4: visita "en curso" vencida que el cron aún no cierra.
+set local felix.time_travel = 'on';
+update public.visits set started_at = now() - interval '7 hours'
+where id = '00000000-0000-0000-0000-0000000c7d01';
+set local felix.time_travel = 'off';
+select pg_temp.login('f01');
+select is(pg_temp.try($$ select public.get_pet_record('00000000-0000-0000-0000-0000000c7e01') is not null $$),
+  'denied', 'B4: vencida la ventana activa, el vet pierde el acceso aunque el cron no la cierre');
 reset role;
 
 select * from finish();

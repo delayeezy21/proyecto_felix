@@ -286,11 +286,16 @@ as $$
   select g.* from public.record_access_grants g
   join public.vet_profiles v on v.user_id = g.vet_id and v.status = 'approved'
   join public.user_roles r on r.user_id = g.vet_id and r.role = 'vet'
+  left join public.visits vi on vi.id = g.visit_id
   where g.pet_id = p_pet
     and g.vet_id = (select auth.uid())
     and g.revoked_at is null
     and g.starts_at <= now()
-    and (g.expires_at is null or g.expires_at > now())
+    -- Sin vencimiento = visita activa: vale solo dentro de su ventana
+    -- (private.visit_active_until), aunque el cron aún no la cierre.
+    and (g.expires_at > now()
+         or (g.expires_at is null and vi.id is not null
+             and now() < coalesce(private.visit_active_until(vi), 'infinity')))
   order by (g.source = 'visit') desc, g.expires_at desc nulls first
   limit 1;
 $$;
@@ -318,7 +323,9 @@ as $$
       and vi.status in ('arrived', 'in_progress', 'completed')
       and g.revoked_at is null
       and g.starts_at <= now()
-      and (g.expires_at is null or g.expires_at > now()));
+      and (g.expires_at > now()
+           or (g.expires_at is null
+               and now() < coalesce(private.visit_active_until(vi), 'infinity'))));
 $$;
 revoke execute on function private.vet_can_write(uuid, uuid) from public, anon;
 grant execute on function private.vet_can_write(uuid, uuid) to authenticated;
@@ -438,6 +445,17 @@ as $$
 declare
   v_prev public.clinical_entries;
 begin
+  -- Primero la autorización: sin ella, el mismo 42501 genérico (no revela si
+  -- existen la mascota o la entrada que se quiere corregir).
+  if (select auth.uid()) is not null
+     and not (new.author_id = (select auth.uid())
+              and ((new.author_role = 'owner'
+                    and exists (select 1 from public.pets p
+                                where p.id = new.pet_id and p.owner_id = (select auth.uid())))
+                   or (new.author_role = 'vet'
+                       and private.vet_can_write(new.pet_id, new.visit_id)))) then
+    raise exception 'No tienes permiso para esta acción' using errcode = '42501';
+  end if;
   new.created_at := now();
   new.retain_until := null;
   select p.species_id into new.species_id from public.pets p where p.id = new.pet_id;
@@ -493,6 +511,9 @@ as $$
 declare
   e public.clinical_entries;
 begin
+  if (select auth.uid()) is not null and not private.entry_writable(new.entry_id) then
+    raise exception 'No tienes permiso para esta acción' using errcode = '42501';
+  end if;
   select * into e from public.clinical_entries where id = new.entry_id;
   if not found or e.kind <> 'vaccine' then
     raise exception 'La vacuna debe ir en una entrada de tipo vacuna' using errcode = '22023';
@@ -516,6 +537,9 @@ as $$
 declare
   e public.clinical_entries;
 begin
+  if (select auth.uid()) is not null and not private.entry_writable(new.entry_id) then
+    raise exception 'No tienes permiso para esta acción' using errcode = '42501';
+  end if;
   select * into e from public.clinical_entries where id = new.entry_id;
   if not found or new.storage_path not like
        'pets/' || e.pet_id::text || '/' || e.id::text || '/%' then
@@ -712,12 +736,12 @@ create policy record_access_log_select_owner on public.record_access_log
 for select to authenticated
 using (exists (select 1 from public.pets p
                where p.id = pet_id and p.owner_id = (select auth.uid())));
--- El dueño ve las autorizaciones de sus mascotas; el vet, solo las suyas.
+-- Solo el dueño ve las autorizaciones de sus mascotas. El vet no las lee
+-- (minimización): su acceso le llega en get_pet_record y en my_visits.
 create policy record_access_grants_select on public.record_access_grants
 for select to authenticated
-using (vet_id = (select auth.uid())
-       or exists (select 1 from public.pets p
-                  where p.id = pet_id and p.owner_id = (select auth.uid())));
+using (exists (select 1 from public.pets p
+               where p.id = pet_id and p.owner_id = (select auth.uid())));
 
 -- Escritura (una sola política permisiva): el dueño, notas sin visita; el
 -- vet, en su visita y con la ventana vigente.
@@ -1097,7 +1121,10 @@ as $$
                       and pay.kind = 'visit' and pay.status = 'simulated_paid'),
       -- Ficha (fase 7): ventana de la visita y si puede escribir en ella.
       'record_access', g.id is not null and g.revoked_at is null
-                       and (g.expires_at is null or g.expires_at > now()),
+                       and (g.expires_at > now()
+                            or (g.expires_at is null
+                                and now() < coalesce(private.visit_active_until(v),
+                                                     'infinity'))),
       'record_until', g.expires_at,
       'record_writable', coalesce(v.pet_id is not null
                                   and private.vet_can_write(v.pet_id, v.id), false),
