@@ -37,7 +37,6 @@ returns table (
   confirm_cutoff interval,  -- ... o hasta esta antelación, lo primero
   en_route_from interval,   -- desde cuándo puede marcar "en camino"
   no_show_after interval,   -- confirmada que nunca empieza: cierre automático
-  max_km integer,           -- radio de búsqueda desde el punto de partida
   max_open_per_owner integer
 )
 language sql
@@ -47,7 +46,7 @@ as $$
   -- min_lead = 3 h: el vet debe confirmar hasta 2 h antes, así siempre tiene
   -- al menos 1 h para responder (SPEC: "al menos 2 h de anticipación").
   select 60, 30, 30, interval '3 hours', interval '30 days', interval '12 hours',
-         interval '2 hours', interval '2 hours', interval '1 hour', 30, 5;
+         interval '2 hours', interval '2 hours', interval '1 hour', 5;
 $$;
 revoke execute on function private.visit_rules() from public, anon, authenticated;
 
@@ -110,31 +109,6 @@ begin
   return v_id;
 end;
 $$;
-
--- ---------------------------------------------------------------------------
--- Punto de partida del vet: en Chile y en la comuna elegida (como addresses).
--- ---------------------------------------------------------------------------
-create function private.guard_vet_base()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if not coalesce(private.point_in_chile(new.lat, new.lng), false) then
-    raise exception 'La ubicación debe estar en Chile' using errcode = '22023';
-  end if;
-  if not coalesce(private.point_in_commune(new.commune_id, new.lat, new.lng), false) then
-    raise exception 'La ubicación marcada no está en la comuna elegida' using errcode = '22023';
-  end if;
-  return new;
-end;
-$$;
-revoke execute on function private.guard_vet_base() from public, anon, authenticated;
-
-create trigger vet_bases_guard before insert or update of lat, lng, commune_id
-on public.vet_bases
-for each row execute function private.guard_vet_base();
 
 -- ---------------------------------------------------------------------------
 -- Visitas
@@ -384,6 +358,8 @@ declare
   v_location extensions.geography;
   v_today date := (now() at time zone 'America/Santiago')::date;
   r record;
+  -- Mismo radio máximo que la cotización (QA-F5-02, versionado).
+  v_max_km integer := (select c.max_distance_km from public.current_pricing_config() c);
 begin
   if v_uid is null or (select private.current_app_role()) is distinct from 'owner' then
     raise exception 'Solo un dueño puede buscar veterinarios' using errcode = '42501';
@@ -408,7 +384,9 @@ begin
            'vet_id', v.user_id,
            'display_name', v.display_name,
            'bio', v.bio,
-           'distance_km', round(extensions.st_distance(b.location, v_location) / 500.0) / 2,
+           -- Desde el origen aproximado (QA-F5-01), redondeada al km como la
+           -- cotización: nunca desde la base real.
+           'distance_km', round(extensions.st_distance(b.quote_origin, v_location) / 1000.0)::integer,
            'slots', s.slots)
   from public.vet_profiles v
   join public.vet_bases b on b.vet_id = v.user_id
@@ -419,14 +397,17 @@ begin
     select jsonb_agg(x.starts_at order by x.starts_at) as slots
     from private.vet_open_slots(v.user_id, p_date) as x (starts_at)) s
   where v.status = 'approved'
-    and extensions.st_dwithin(b.location, v_location, r.max_km * 1000)
+    and extensions.st_dwithin(b.quote_origin, v_location, v_max_km * 1000)
     and s.slots is not null
-  order by extensions.st_distance(b.location, v_location), v.display_name
+  order by extensions.st_distance(b.quote_origin, v_location), v.display_name
   limit 20;
 end;
 $$;
 revoke execute on function private.find_available_vets(uuid, uuid, integer, date) from public, anon;
 grant execute on function private.find_available_vets(uuid, uuid, integer, date) to authenticated;
+
+-- Búsqueda por cercanía desde el origen aproximado.
+create index vet_bases_quote_origin_gix on public.vet_bases using gist (quote_origin);
 
 create function public.available_vets(
   p_pet_id uuid, p_address_id uuid, p_specialty_id integer, p_date date)

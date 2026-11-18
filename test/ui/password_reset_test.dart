@@ -9,9 +9,11 @@ import '../helpers/fakes.dart';
 void main() {
   late FakeAuthRepository auth;
   late FakeProfileRepository profiles;
+  late FakeRecoveryFlagStore store;
 
   setUp(() {
     auth = FakeAuthRepository();
+    store = FakeRecoveryFlagStore();
     profiles = FakeProfileRepository(
       auth,
       accounts: {'o1': const Account(role: AppRole.owner, displayName: 'Ana')},
@@ -23,7 +25,9 @@ void main() {
       ..physicalSize = const Size(800, 1600)
       ..devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(testApp(auth: auth, profiles: profiles));
+    await tester.pumpWidget(
+      testApp(auth: auth, profiles: profiles, recoveryStore: store),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -141,6 +145,39 @@ void main() {
       await tester.pumpAndSettle();
       expect(auth.userId, isNull);
       expect(find.byKey(const Key('login-submit')), findsOneWidget);
+    });
+  });
+
+  group('modo recuperación persistente (O-2)', () {
+    testWidgets('el evento guarda la marca y al terminar se borra', (
+      tester,
+    ) async {
+      await open(tester);
+      auth.emitRecovery('o1');
+      await tester.pumpAndSettle();
+      expect(store.userId, 'o1');
+      for (final k in ['reset-password', 'reset-confirm']) {
+        await tester.enterText(find.byKey(Key(k)), 'NuevaClave2026');
+      }
+      await tester.tap(find.byKey(const Key('reset-submit')));
+      await tester.pumpAndSettle();
+      expect(store.userId, isNull);
+    });
+
+    testWidgets('al recargar con la marca del mismo usuario sigue en la '
+        'pantalla de nueva contraseña', (tester) async {
+      auth.emit('o1');
+      store.userId = 'o1';
+      await open(tester);
+      expect(find.text('Nueva contraseña'), findsOneWidget);
+    });
+
+    testWidgets('una marca de otro usuario se descarta', (tester) async {
+      auth.emit('o1');
+      store.userId = 'otro';
+      await open(tester);
+      expect(find.text('Hola, Ana'), findsOneWidget);
+      expect(store.userId, isNull);
     });
   });
 

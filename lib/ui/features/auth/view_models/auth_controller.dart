@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
+import 'package:proyecto_felix/data/services/recovery_flag_store.dart';
 
 /// Acciones de autenticación. El estado indica si hay una operación en curso
 /// y el último error (`AuthFailure`).
@@ -61,18 +64,40 @@ final authControllerProvider = AsyncNotifierProvider<AuthController, void>(
 
 /// true mientras el usuario volvió del enlace de recuperación y aún no fija
 /// su contraseña nueva. El router lo lleva a la pantalla de nueva contraseña.
+///
+/// La marca se guarda (con el id del usuario) en el almacenamiento local, así
+/// que una recarga de la web sigue en /reset-password (QA O-2).
 class PasswordRecoveryController extends Notifier<bool> {
   @override
   bool build() {
-    final sub = ref
-        .watch(authRepositoryProvider)
-        .watchPasswordRecovery()
-        .listen((_) => state = true);
+    final auth = ref.watch(authRepositoryProvider);
+    final store = ref.watch(recoveryFlagStoreProvider);
+    final sub = auth.watchPasswordRecovery().listen((_) async {
+      state = true;
+      await store.write(await auth.watchUserId().first);
+    });
     ref.onDispose(sub.cancel);
+    unawaited(_restore(auth, store));
     return false;
   }
 
-  void finish() => state = false;
+  Future<void> _restore(AuthRepository auth, RecoveryFlagStore store) async {
+    final stored = await store.read();
+    if (stored == null) return;
+    final uid = await auth.watchUserId().first;
+    if (!ref.mounted) return;
+    if (uid == stored) {
+      state = true;
+    } else {
+      // La marca era de otra sesión: se descarta.
+      await store.write(null);
+    }
+  }
+
+  void finish() {
+    state = false;
+    unawaited(ref.read(recoveryFlagStoreProvider).write(null));
+  }
 }
 
 final passwordRecoveryProvider =

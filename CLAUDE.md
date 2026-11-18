@@ -27,6 +27,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Los mapas y el geocoding solo se usan vía `MapAdapter` / `GeocodingAdapter`.
 - Los precios se calculan solo en el servidor (`quote_visit` → fila inmutable en `quotes`); la fase 6 la congela en `visits.quote` vía `private.consume_quote`. Pago al vet = servicio − comisión (redondeo `private.clp_round`, mitad hacia arriba).
 - Pagos solo simulados (`simulate_payment`, `provider = 'simulated'`). Las fundaciones no leen pagos ni aportes: solo `foundation_summary()` (totales por mes). Sus miembros se crean por SQL.
+- La distancia al vet se mide desde `vet_bases.quote_origin` (base desplazada 1–2 km al azar, fija): nunca exponer `quotes.distance_m` ni la base real; tope `pricing_config.max_distance_km`.
 - Los estados de la visita cambian solo vía `transition_visit`; nunca con `update` directo.
 - La ficha clínica es solo inserción: las correcciones crean una entrada con `supersedes_id`.
 - El vet lee la ficha solo vía la RPC `get_pet_record` (registra cada lectura); no tiene `SELECT` directo.

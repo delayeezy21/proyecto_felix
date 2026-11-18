@@ -124,9 +124,11 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> sendPasswordReset({required String email}) => _guard(
-    () => _auth.resetPasswordForEmail(
-      email.trim(),
-      redirectTo: authRedirectTarget(),
+    () => neutralPasswordReset(
+      () => _auth.resetPasswordForEmail(
+        email.trim(),
+        redirectTo: authRedirectTarget(),
+      ),
     ),
   );
 
@@ -146,6 +148,37 @@ class SupabaseAuthRepository implements AuthRepository {
       throw AuthFailure(authErrorMessage(e.code, e.message), code: e.code);
     }
   }
+}
+
+/// Tiempo mínimo de respuesta de "Olvidé mi contraseña" (QA-F5-03).
+const passwordResetMinDuration = Duration(milliseconds: 800);
+
+/// Envía el enlace sin revelar si el correo tiene cuenta (QA-F5-03):
+/// - GoTrue responde 429 `over_email_send_rate_limit` solo a cuentas
+///   existentes que repiten el pedido: se trata como un envío correcto;
+/// - la respuesta tarda al menos [minDuration] (iguala el tiempo de una
+///   cuenta existente, ~70 ms, con el de una inexistente, ~5 ms).
+/// Otros errores (red, `over_request_rate_limit` por IP) se propagan después
+/// de la misma espera. La mitigación completa es captcha en la nube
+/// (docs/despliegue-beta.md).
+Future<void> neutralPasswordReset(
+  Future<void> Function() send, {
+  Duration minDuration = passwordResetMinDuration,
+}) async {
+  final watch = Stopwatch()..start();
+  Object? error;
+  StackTrace? trace;
+  try {
+    await send();
+  } on AuthException catch (e, st) {
+    if (e.code != 'over_email_send_rate_limit') {
+      error = e;
+      trace = st;
+    }
+  }
+  final left = minDuration - watch.elapsed;
+  if (left > Duration.zero) await Future<void>.delayed(left);
+  if (error != null) Error.throwWithStackTrace(error, trace!);
 }
 
 /// Traduce los códigos de Supabase Auth a mensajes en español.

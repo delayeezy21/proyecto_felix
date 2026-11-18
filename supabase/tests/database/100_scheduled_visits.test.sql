@@ -45,6 +45,9 @@ insert into public.vet_bases (vet_id, commune_id, lat, lng) values
    (select commune_id from public.communes_at_point(-33.3849, -70.5974) limit 1), -33.3849, -70.5974),
   ('00000000-0000-0000-0000-0000000009b2',
    (select commune_id from public.communes_at_point(-33.3849, -70.5974) limit 1), -33.3849, -70.5974);
+-- Sin desplazamiento del origen aproximado (QA-F5-01): montos deterministas.
+update public.vet_bases set fuzz_dlat = 0, fuzz_dlng = 0
+  where vet_id in ('00000000-0000-0000-0000-0000000009b1', '00000000-0000-0000-0000-0000000009b2');
 
 update public.foundations set is_default = false where is_default;
 insert into public.foundations (id, name, is_default) values
@@ -177,7 +180,7 @@ select is((select j ->> 'display_name' from t_av), 'Dra. Agenda', 'el vet compat
 select is((select string_agg(k, ',' order by k) from t_av, jsonb_object_keys(j) k),
   'bio,display_name,distance_km,slots,vet_id', 'del vet solo se entregan datos públicos');
 select is((select (j ->> 'distance_km')::numeric from t_av), 8.0,
-  'la distancia se entrega redondeada a 0,5 km');
+  'la distancia se entrega redondeada al km, desde el origen aproximado');
 select ok((select (j -> 'slots') @> to_jsonb(array[pg_temp.ts('T')]) from t_av),
   'el horario de mañana está disponible');
 select throws_ok(
