@@ -2,8 +2,9 @@
 
 Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.md`. Diseño: `docs/arquitectura.md`.
 
-## Idioma
+## Idioma y reserva de uso
 - Responde siempre en español. Solo el código, los identificadores y los comandos van en inglés.
+- Mantén siempre 20 % del límite de uso de la sesión libre. Al llegar al 80 %, o ante el primer aviso de límite (429), detén el desarrollo y los agentes, ejecuta `/guardar-memoria` y envía al usuario un PDF TDAH con el estado de los servicios, las pruebas y los avances del equipo.
 
 ## Memoria (NotebookLM)
 - Notebook: `f18b8953-2f68-4a1b-a4d9-d220afbbfa87`. Nota principal `MEMORIA-PROYECTO` (se carga sola). Actualízala con `/guardar-memoria`.
