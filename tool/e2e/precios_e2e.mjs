@@ -3,7 +3,10 @@
 // Uso: node tool/e2e/precios_e2e.mjs "$(npx --yes supabase@3.2.0 status -o json | sed -n '/^{/,$p')"
 // Crea usuarios y fundaciones ficticias. Al final borra los usuarios (los
 // pagos quedan anonimizados y los aportes se conservan, como en producción).
+import { sqlRunner } from './sql.mjs';
+
 const st = JSON.parse(process.argv[2]);
+const sql = sqlRunner(st);
 const API = st.API_URL;
 const PUB = st.PUBLISHABLE_KEY;
 const SRV = st.SERVICE_ROLE_KEY;
@@ -75,6 +78,9 @@ try {
   check(base.status === 201, `el vet define su punto de partida (HTTP ${base.status})`);
   const fuzzPatch = await call(`/rest/v1/vet_bases?vet_id=eq.${vet.id}`, { method: 'PATCH', token: vet.token, body: { fuzz_dlat: 0 } });
   check(fuzzPatch.status >= 400, `el vet no anula su desplazamiento aleatorio (HTTP ${fuzzPatch.status})`);
+  // Fase 6: disponible todo el día para reservar y completar una visita.
+  await call('/rest/v1/vet_availability', { method: 'POST', key: SRV, token: SRV,
+    body: [1, 2, 3, 4, 5, 6, 7].map((d) => ({ vet_id: vet.id, weekday: d, start_min: 0, end_min: 1440 })) });
   // Para montos deterministas, el E2E (service role) anula el desplazamiento.
   await call(`/rest/v1/vet_bases?vet_id=eq.${vet.id}`, { method: 'PATCH', key: SRV, token: SRV, body: { fuzz_dlat: 0, fuzz_dlng: 0 } });
 
@@ -152,24 +158,44 @@ try {
     commission_pct: 20, foundation_pct: 50, urgent_pct: 40, per_km: 800, free_km: 2, cancel_fee: 6000, created_by: admin.id } });
   check(cfg.status === 201, 'el admin publica una nueva versión de parámetros');
 
-  // --- Pago simulado -----------------------------------------------------------------------
-  const pay = await rpc('simulate_payment', { p_quote_id: qj.quote_id }, ownerA.token);
+  // --- Pago simulado (fase 6: solo de una visita completada) --------------------------------
+  const payQuote = await rpc('simulate_payment', { p_visit_id: qj.quote_id }, ownerA.token);
+  check(payQuote.status === 400, 'ya no se paga una cotización suelta (solo visitas completadas)');
+  const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+  const slot = (await rpc('available_vets', { p_pet_id: pet, p_address_id: addr, p_specialty_id: general, p_date: tomorrow },
+    ownerA.token)).json.find((v) => v.vet_id === vet.id)?.slots?.[0];
+  const booked = await rpc('book_visit', { p_quote_id: qj.quote_id, p_vet_id: vet.id, p_pet_id: pet,
+    p_address_id: addr, p_scheduled_at: slot }, ownerA.token);
+  const visitId = booked.json?.id;
+  check(booked.status === 200 && booked.json.quote.total === 29490, 'la visita reservada congela el precio de la cotización');
+  const early = await rpc('simulate_payment', { p_visit_id: visitId }, ownerA.token);
+  check(early.status === 400, 'no se paga antes de completar la visita');
+  const tr = (to) => rpc('transition_visit', { p_visit_id: visitId, p_to_status: to }, vet.token);
+  await tr('accepted');
+  // Paso del tiempo (SQL directo): la visita empieza en 1 h.
+  sql(`update public.visits set scheduled_at = date_trunc('minute', now()) + interval '1 hour',
+    slot = tstzrange(date_trunc('minute', now()) + interval '1 hour', date_trunc('minute', now()) + interval '150 minutes')
+    where id = '${visitId}'`);
+  for (const s of ['en_route', 'arrived', 'in_progress', 'completed']) await tr(s);
+  const fakeAmount = await rpc('simulate_payment', { p_visit_id: visitId, p_total: 1 }, ownerA.token);
+  check(fakeAmount.status >= 400, 'simulate_payment no acepta montos');
+  const failed = await rpc('simulate_payment', { p_visit_id: visitId, p_simulate_failure: true }, ownerA.token);
+  check(failed.json.status === 'simulated_failed', 'se puede simular un pago rechazado');
+  const bPays = await rpc('simulate_payment', { p_visit_id: visitId }, ownerB.token);
+  check(bPays.status === 400, 'el dueño B no paga una visita de A');
+  const pay = await rpc('simulate_payment', { p_visit_id: visitId }, ownerA.token);
   check(pay.status === 200 && pay.json.status === 'simulated_paid' && pay.json.platform_fee === 4274 && pay.json.total === 29490,
     'el pago simulado usa el precio congelado aunque cambió la configuración');
-  const again = await rpc('simulate_payment', { p_quote_id: qj.quote_id }, ownerA.token);
-  check(again.status === 400, 'una cotización no se paga dos veces');
-  const fakeAmount = await rpc('simulate_payment', { p_quote_id: urg.quote_id, p_total: 1 }, ownerA.token);
-  check(fakeAmount.status >= 400, 'simulate_payment no acepta montos');
-  const failed = await rpc('simulate_payment', { p_quote_id: urg.quote_id, p_simulate_failure: true }, ownerA.token);
-  check(failed.json.status === 'simulated_failed', 'se puede simular un pago rechazado');
-  const bPays = await rpc('simulate_payment', { p_quote_id: urg.quote_id }, ownerB.token);
-  check(bPays.status === 400, 'el dueño B no paga una cotización de A');
+  const again = await rpc('simulate_payment', { p_visit_id: visitId }, ownerA.token);
+  check(again.status === 400, 'una visita no se paga dos veces');
   const myPays = await call('/rest/v1/payments?select=id,status,total,provider', { token: ownerA.token });
   check(myPays.json.length === 2 && myPays.json.every((p) => p.provider === 'simulated'),
     'el dueño A ve sus pagos, todos simulados');
+  const vetPays = await call('/rest/v1/payments?select=id', { token: vet.token });
+  check(vetPays.json.length === 2, 'el vet ve solo los pagos de su visita (fase 6)');
 
   // --- Otros roles no ven pagos ajenos ---------------------------------------------------------
-  for (const [who, u] of [['el dueño B', ownerB], ['el vet', vet], ['la fundación X', fundX]]) {
+  for (const [who, u] of [['el dueño B', ownerB], ['la fundación X', fundX]]) {
     const p = await call('/rest/v1/payments?select=id', { token: u.token });
     const qq = await call('/rest/v1/quotes?select=id', { token: u.token });
     check(p.status === 200 && p.json.length === 0 && qq.json.length === 0, `${who} no ve pagos ni cotizaciones ajenas`);

@@ -25,18 +25,18 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Mascotas y direcciones: solo las ve su dueño (el admin tampoco, por minimización). `addresses.location` es columna generada desde `lat`/`lng`, validada contra `commune_boundaries` (BCN vía geoBoundaries, CC BY 3.0 IGO; margen de 2,5 km). Tiles OSM por `OSM_TILE_URL` (los públicos solo para desarrollo). El geocoding de Google requiere `GOOGLE_GEOCODING_API_KEY` propia; si no hay, Nominatim.
 - La UI nunca llama a Supabase directo: Vista → ViewModel (Riverpod) → Repositorio → Servicio.
 - Los mapas y el geocoding solo se usan vía `MapAdapter` / `GeocodingAdapter`.
-- Los precios se calculan solo en el servidor (`quote_visit` → fila inmutable en `quotes`); la fase 6 la congela en `visits.quote` vía `private.consume_quote`. Pago al vet = servicio − comisión (redondeo `private.clp_round`, mitad hacia arriba).
-- Pagos solo simulados (`simulate_payment`, `provider = 'simulated'`). Las fundaciones no leen pagos ni aportes: solo `foundation_summary()` (totales por mes). Sus miembros se crean por SQL.
+- Los precios se calculan solo en el servidor (`quote_visit` → fila inmutable en `quotes`); `book_visit` la consume con `private.consume_quote(id, dueño, vet, mascota, dirección)` (exige vet y que coincidan) y congela su snapshot en `visits.quote`. Pago al vet = servicio − comisión (`private.clp_round`, mitad hacia arriba).
+- Pagos solo simulados (`provider = 'simulated'`): `simulate_payment(p_visit_id)` solo para visitas `completed`; el cargo por cancelación tardía se registra como pago `cancel_fee`. El vet ve los pagos de sus visitas (`payments.vet_id`). Las fundaciones no leen pagos ni aportes: solo `foundation_summary()` (totales por mes). Sus miembros se crean por SQL.
 - La distancia al vet se mide desde `vet_bases.quote_origin` (base desplazada 1–2 km al azar, fija): nunca exponer `quotes.distance_m` ni la base real; tope `pricing_config.max_distance_km`.
-- Los estados de la visita cambian solo vía `transition_visit`; nunca con `update` directo.
+- Los estados de la visita cambian solo vía `transition_visit` (el trigger `private.guard_visit` rechaza todo otro cambio). Agenda en hora de Chile; slot = 60 min + 30 de traslado (exclusión `visits_no_overlap`); se reserva con ≥ 3 h; pg_cron `expire-visits` expira las pendientes y cierra como `cancelled_vet` (sin cargo) las confirmadas sin "en camino" 1 h después. El vet ve la dirección exacta solo vía `my_visits` (accepted → in_progress); el admin, solo `admin_visit_summary`.
+- Los E2E que simulan el paso del tiempo (`visitas_e2e`, `precios_e2e`) usan `tool/e2e/sql.mjs` (`docker exec` + psql): solo contra stacks locales.
 - La ficha clínica es solo inserción: las correcciones crean una entrada con `supersedes_id`.
 - El vet lee la ficha solo vía la RPC `get_pet_record` (registra cada lectura); no tiene `SELECT` directo.
 - Supabase local concede ALL por defecto a `anon`/`authenticated` en tablas nuevas: cada migración hace `revoke all` + `grant` mínimos (con UPDATE por columna) + `enable/force row level security` + test pgTAP. Las invariantes de `000_base.test.sql` lo vigilan.
 - El registro se completa con la RPC `complete_registration` (SECURITY INVOKER); el rol solo se autoasigna como `owner`/`vet`. El admin se crea por SQL.
 - "Olvidé mi contraseña": `resetPasswordForEmail` vuelve con el evento `passwordRecovery`; mientras `passwordRecoveryProvider` sea true, el router solo deja `/reset-password`.
 - Helpers `security definer` solo en el esquema `private`, con `set search_path = ''` y `(select auth.uid())`.
-- Los roles van en `user_roles`, nunca en `user_metadata`.
-- Montos en CLP como `integer`.
+- Los roles van en `user_roles`, nunca en `user_metadata`. Montos en CLP como `integer`.
 - Datos de referencia (regiones, 346 comunas, especies, especialidades, tarifas, parámetros) van en migraciones; datos demo (clínicas ficticias) en `seed.sql`. Los catálogos no se borran: se desactivan (`active`).
 - `pricing_config` es versionada (solo INSERT). Cambios del admin en catálogos quedan en `admin_audit_log` (trigger `private.log_admin_change`).
 - Para no perder datos locales, aplicar migraciones con `supabase migration up` (no `db reset`).
@@ -49,7 +49,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Consulta general a domicilio: $26.990 todo incluido hasta 5 km (vet $22.941), en `tariffs` vía migración. Opción sin activar: `pricing_config.commission_on_distance = false` (recargo por km 100 % al vet).
 - Urgencia: radio 5 → 10 → 20 km, tandas de 3 vets × 60 s, máximo 10 min; si no hay vet, sin cobro y se ofrece agendar o ver clínicas 24 h.
 - Recargo de urgencia 30 % de la base; $500/km sobre 5 km.
-- Cancelación gratis hasta 2 h antes (agendada) o antes de "en camino" (urgente); después $5.000.
+- Cancelación gratis hasta 2 h antes (agendada) o antes de "en camino" (urgente); después $5.000 (`cancel_fee`, `cancel_free_hours` de la versión congelada en la cotización).
 - Acceso del vet a la ficha: desde que acepta hasta 30 días después de cerrar la visita, o por autorización revocable del dueño.
 - Dirección exacta visible solo para el vet asignado mientras la visita está activa.
 
