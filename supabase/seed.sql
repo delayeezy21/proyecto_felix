@@ -17,3 +17,11 @@ from (values
   ('Clínica Demo 24h Sur', 'Concepción', 'Calle Demo 321', '+56 41 200 0004')
 ) as t (name, commune, address, phone)
 join public.communes c on c.name = t.commune;
+
+-- Fundaciones FICTICIAS (demo, fase 5). La primera es la por defecto.
+-- Los miembros (rol `foundation`) se crean por SQL, igual que el admin.
+insert into public.foundations (name, description, is_default) values
+  ('Fundación Demo Patitas', 'Rescate y esterilización (datos ficticios).', true),
+  ('Fundación Demo Bigotes', 'Colonias felinas (datos ficticios).', false),
+  ('Fundación Demo Huellas', 'Adopción responsable (datos ficticios).', false)
+on conflict (name) do nothing;

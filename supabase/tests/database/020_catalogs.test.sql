@@ -23,7 +23,7 @@ select is(
   public.base_tariff(
     (select id from public.species where slug = 'perro'),
     (select id from public.specialties where slug = 'general')),
-  25000, 'tarifa general de perro = 25.000');
+  26990, 'tarifa general de perro = 26.990');
 
 insert into public.tariffs (specialty_id, species_id, base_price)
 values (

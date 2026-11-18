@@ -45,6 +45,17 @@ abstract interface class AuthRepository {
   Future<void> signInWithGoogle();
 
   Future<void> signOut();
+
+  /// Envía el enlace para restablecer la contraseña. No revela si el correo
+  /// tiene cuenta (Supabase responde igual en ambos casos).
+  Future<void> sendPasswordReset({required String email});
+
+  /// Emite cada vez que el usuario vuelve del enlace de recuperación (evento
+  /// `passwordRecovery`): ya tiene sesión y debe fijar una contraseña nueva.
+  Stream<void> watchPasswordRecovery();
+
+  /// Cambia la contraseña del usuario con sesión (tras la recuperación).
+  Future<void> updatePassword(String password);
 }
 
 /// Deep link de retorno para OAuth y confirmación de email en móvil.
@@ -111,6 +122,25 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() => _guard(_auth.signOut);
 
+  @override
+  Future<void> sendPasswordReset({required String email}) => _guard(
+    () => neutralPasswordReset(
+      () => _auth.resetPasswordForEmail(
+        email.trim(),
+        redirectTo: authRedirectTarget(),
+      ),
+    ),
+  );
+
+  @override
+  Stream<void> watchPasswordRecovery() => _auth.onAuthStateChange
+      .where((s) => s.event == AuthChangeEvent.passwordRecovery)
+      .map((_) {});
+
+  @override
+  Future<void> updatePassword(String password) =>
+      _guard(() => _auth.updateUser(UserAttributes(password: password)));
+
   Future<T> _guard<T>(Future<T> Function() action) async {
     try {
       return await action();
@@ -118,6 +148,37 @@ class SupabaseAuthRepository implements AuthRepository {
       throw AuthFailure(authErrorMessage(e.code, e.message), code: e.code);
     }
   }
+}
+
+/// Tiempo mínimo de respuesta de "Olvidé mi contraseña" (QA-F5-03).
+const passwordResetMinDuration = Duration(milliseconds: 800);
+
+/// Envía el enlace sin revelar si el correo tiene cuenta (QA-F5-03):
+/// - GoTrue responde 429 `over_email_send_rate_limit` solo a cuentas
+///   existentes que repiten el pedido: se trata como un envío correcto;
+/// - la respuesta tarda al menos [minDuration] (iguala el tiempo de una
+///   cuenta existente, ~70 ms, con el de una inexistente, ~5 ms).
+/// Otros errores (red, `over_request_rate_limit` por IP) se propagan después
+/// de la misma espera. La mitigación completa es captcha en la nube
+/// (docs/despliegue-beta.md).
+Future<void> neutralPasswordReset(
+  Future<void> Function() send, {
+  Duration minDuration = passwordResetMinDuration,
+}) async {
+  final watch = Stopwatch()..start();
+  Object? error;
+  StackTrace? trace;
+  try {
+    await send();
+  } on AuthException catch (e, st) {
+    if (e.code != 'over_email_send_rate_limit') {
+      error = e;
+      trace = st;
+    }
+  }
+  final left = minDuration - watch.elapsed;
+  if (left > Duration.zero) await Future<void>.delayed(left);
+  if (error != null) Error.throwWithStackTrace(error, trace!);
 }
 
 /// Traduce los códigos de Supabase Auth a mensajes en español.
@@ -133,5 +194,7 @@ String authErrorMessage(String? code, String fallback) => switch (code) {
   'over_email_send_rate_limit' ||
   'over_request_rate_limit' => 'Demasiados intentos. Espera unos minutos.',
   'provider_disabled' => 'Este método de inicio de sesión no está habilitado.',
+  'same_password' => 'La contraseña nueva debe ser distinta de la anterior.',
+  'otp_expired' => 'El enlace venció. Pide uno nuevo.',
   _ => 'No se pudo completar la operación. Inténtalo de nuevo.',
 };

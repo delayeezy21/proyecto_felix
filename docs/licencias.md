@@ -6,4 +6,4 @@
 | Mapa base OpenStreetMap | Tiles del mapa | © colaboradores de OpenStreetMap | [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) |
 | Geocoding Nominatim | Búsqueda de direcciones | © colaboradores de OpenStreetMap | [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) |
 
-Pendiente (QA-F4-07): una pantalla "Acerca de / licencias" en la app con esta misma atribución, junto con la de OSM.
+La app muestra esta misma atribución en "Acerca de y licencias" (`/about`, accesible desde el login y el perfil; los textos viven en `lib/domain/models/attributions.dart`: mantenerlos iguales a esta tabla).

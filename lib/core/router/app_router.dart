@@ -6,14 +6,19 @@ import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_home_view.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_vet_review_view.dart';
+import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
+import 'package:proyecto_felix/ui/features/auth/views/forgot_password_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/login_view.dart';
+import 'package:proyecto_felix/ui/features/auth/views/reset_password_view.dart';
 import 'package:proyecto_felix/ui/features/auth/views/sign_up_view.dart';
-import 'package:proyecto_felix/ui/features/home/views/role_home_view.dart';
+import 'package:proyecto_felix/ui/features/foundation/views/foundation_home_view.dart';
+import 'package:proyecto_felix/ui/features/home/views/about_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/session_error_view.dart';
 import 'package:proyecto_felix/ui/features/home/views/splash_view.dart';
 import 'package:proyecto_felix/ui/features/onboarding/views/onboarding_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/address_form_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_home_view.dart';
+import 'package:proyecto_felix/ui/features/owner/views/owner_profile_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/pet_form_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_profile_view.dart';
 
@@ -22,6 +27,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref
     ..listen(sessionProvider, (_, _) => refresh.value++)
+    ..listen(passwordRecoveryProvider, (_, _) => refresh.value++)
     ..onDispose(refresh.dispose);
 
   SessionSnapshot currentSession() => switch (ref.read(sessionProvider)) {
@@ -33,8 +39,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: AppRoutes.splash,
     refreshListenable: refresh,
-    redirect: (context, state) =>
-        AppRoutes.redirect(currentSession(), state.matchedLocation),
+    redirect: (context, state) => AppRoutes.redirect(
+      currentSession(),
+      state.matchedLocation,
+      recoveringPassword: ref.read(passwordRecoveryProvider),
+    ),
     routes: [
       GoRoute(
         path: AppRoutes.splash,
@@ -53,6 +62,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SignUpView(),
       ),
       GoRoute(
+        path: AppRoutes.about,
+        builder: (context, state) => const AboutView(),
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        builder: (context, state) => const ForgotPasswordView(),
+      ),
+      GoRoute(
+        path: AppRoutes.resetPassword,
+        builder: (context, state) => const ResetPasswordView(),
+      ),
+      GoRoute(
         path: AppRoutes.onboarding,
         builder: (context, state) => const OnboardingView(),
       ),
@@ -68,6 +89,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: 'pets/:id',
             builder: (context, state) =>
                 PetFormView(petId: state.pathParameters['id']),
+          ),
+          GoRoute(
+            path: 'profile',
+            builder: (context, state) => const OwnerProfileView(),
           ),
           GoRoute(
             path: 'addresses/new',
@@ -103,10 +128,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.foundation,
-        builder: (context, state) => const RoleHomeView(
-          title: 'Fundación',
-          message: 'Aquí verás los aportes recibidos.',
-        ),
+        builder: (context, state) => const FoundationHomeView(),
       ),
     ],
   );

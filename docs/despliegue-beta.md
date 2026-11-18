@@ -229,7 +229,11 @@ Configuración de Resend:
 | Token refresh y login (`/token`, por IP, cada 5 min) | 150 | **300** | Mismo motivo |
 | Verificaciones OTP (por IP, cada 5 min) | 30 | 60 | Confirmaciones de correo desde la misma red |
 
+> **`email_sent` es global** (todo el proyecto: confirmaciones, recuperaciones y cambios de correo). En `supabase/config.toml` vale `2`, el valor de desarrollo (con Mailpit no se aplica). En la nube con SMTP propio **súbelo en el dashboard** a 100 por hora (Resend Free, 100 al día → ~1 tanda por hora) o 300 (SES / Resend Pro). Con 2, el tercer correo de la hora deja a todos los usuarios sin confirmación ni recuperación. No lo cambies con `config push` (ver Paso 3).
+
 Más adelante: captcha (Cloudflare Turnstile) en el registro. **Hoy no lo actives:** la app todavía no envía `captchaToken` y el registro dejaría de funcionar.
+
+**Paso opcional · captcha en "Olvidé mi contraseña" (QA-F5-03).** GoTrue responde `429 over_email_send_rate_limit` solo a cuentas existentes que repiten el pedido, y tarda más con ellas. La app ya lo neutraliza (trata el 429 como éxito y responde en al menos 800 ms), pero un script contra la API aún podría enumerar correos. La mitigación completa es captcha: Supabase Auth admite **hCaptcha** y **Cloudflare Turnstile** (Authentication → Attack Protection). Requiere que la app envíe `captchaToken` en `resetPasswordForEmail`, `signUp` y `signInWithPassword`; actívalo solo cuando ese cambio esté publicado.
 
 ### 7.5 Plantillas en español (Authentication → Emails → Templates)
 Copia cada HTML de `supabase/templates/` en su plantilla (son las mismas que usa el stack local):
@@ -370,8 +374,14 @@ select id, public.current_legal_version('privacy') from auth.users where email =
 ```
 
 3. Activa **MFA** en tu cuenta de Supabase (Account → Security) y en GitHub.
+4. **Fundación por defecto (obligatoria).** `seed.sql` no va a la nube y, sin una fundación activa marcada por defecto, `quote_visit` falla con "No hay una fundación por defecto configurada". Con el admin, en la web: pestaña **Fundaciones** → crea la fundación aliada real (con su acuerdo firmado) → **Marcar por defecto**. O en el SQL Editor:
 
-**Listo cuando:** inicias sesión en la web y ves el panel de admin.
+```sql
+insert into public.foundations (name, description, is_default)
+values ('<NOMBRE DE LA FUNDACIÓN ALIADA>', '<descripción breve>', true);
+```
+
+**Listo cuando:** inicias sesión en la web, ves el panel de admin y la pestaña Fundaciones muestra una fundación activa por defecto.
 
 ---
 

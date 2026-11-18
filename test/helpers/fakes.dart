@@ -14,6 +14,7 @@ import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
+import 'package:proyecto_felix/data/services/recovery_flag_store.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/geo.dart';
@@ -21,8 +22,10 @@ import 'package:proyecto_felix/domain/models/pet.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
 
 import 'owner_fakes.dart';
+import 'pricing_fakes.dart';
 
 export 'owner_fakes.dart';
+export 'pricing_fakes.dart';
 
 const configuredEnv = Env(
   supabaseUrl: 'http://127.0.0.1:54321',
@@ -102,6 +105,32 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() async => emit(null);
+
+  final resetCalls = <String>[];
+  final passwordUpdates = <String>[];
+  final _recovery = StreamController<void>.broadcast();
+
+  /// Simula la vuelta desde el enlace de recuperación: hay sesión y llega el
+  /// evento `passwordRecovery`.
+  void emitRecovery(String userId) {
+    emit(userId);
+    _recovery.add(null);
+  }
+
+  @override
+  Future<void> sendPasswordReset({required String email}) async {
+    resetCalls.add(email);
+    _maybeFail();
+  }
+
+  @override
+  Stream<void> watchPasswordRecovery() => _recovery.stream;
+
+  @override
+  Future<void> updatePassword(String password) async {
+    passwordUpdates.add(password);
+    _maybeFail();
+  }
 }
 
 class RegistrationCall {
@@ -186,6 +215,9 @@ Widget testApp({
   FakeAddressRepository? addresses,
   GeocodingAdapter? geocoder,
   MapAdapter? map,
+  FakeQuoteRepository? quotes,
+  FakeFoundationRepository? foundations,
+  FakeRecoveryFlagStore? recoveryStore,
   Env env = configuredEnv,
 }) => ProviderScope(
   overrides: [
@@ -206,6 +238,13 @@ Widget testApp({
       geocoder ?? FakeGeocodingAdapter(),
     ),
     mapAdapterProvider.overrideWithValue(map ?? FakeMapAdapter()),
+    quoteRepositoryProvider.overrideWithValue(quotes ?? FakeQuoteRepository()),
+    foundationRepositoryProvider.overrideWithValue(
+      foundations ?? FakeFoundationRepository(),
+    ),
+    recoveryFlagStoreProvider.overrideWithValue(
+      recoveryStore ?? FakeRecoveryFlagStore(),
+    ),
   ],
   child: const FelixApp(),
 );
@@ -627,4 +666,17 @@ class FakeUrlOpener implements UrlOpener {
     opened.add(url);
     return true;
   }
+}
+
+/// Marca de recuperación en memoria (simula el almacenamiento local).
+class FakeRecoveryFlagStore implements RecoveryFlagStore {
+  new({this.userId});
+
+  String? userId;
+
+  @override
+  Future<String?> read() async => userId;
+
+  @override
+  Future<void> write(String? userId) async => this.userId = userId;
 }

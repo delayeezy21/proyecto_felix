@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
+import 'package:proyecto_felix/data/services/recovery_flag_store.dart';
 
 /// Acciones de autenticación. El estado indica si hay una operación en curso
 /// y el último error (`AuthFailure`).
@@ -18,7 +21,22 @@ class AuthController extends AsyncNotifier<void> {
   Future<bool> resendConfirmation({required String email}) =>
       _run(() => _repo.resendConfirmation(email: email));
 
-  Future<bool> signOut() => _run(_repo.signOut);
+  Future<bool> signOut() {
+    ref.read(passwordRecoveryProvider.notifier).finish();
+    return _run(_repo.signOut);
+  }
+
+  Future<bool> sendPasswordReset({required String email}) =>
+      _run(() => _repo.sendPasswordReset(email: email));
+
+  /// Fija la contraseña nueva y cierra el modo recuperación.
+  Future<bool> updatePassword(String password) async {
+    final ok = await _run(() => _repo.updatePassword(password));
+    if (ok && ref.mounted) {
+      ref.read(passwordRecoveryProvider.notifier).finish();
+    }
+    return ok;
+  }
 
   /// Devuelve el resultado, o null si falló (el error queda en `state`).
   Future<SignUpResult?> signUp({
@@ -43,6 +61,49 @@ class AuthController extends AsyncNotifier<void> {
 final authControllerProvider = AsyncNotifierProvider<AuthController, void>(
   AuthController.new,
 );
+
+/// true mientras el usuario volvió del enlace de recuperación y aún no fija
+/// su contraseña nueva. El router lo lleva a la pantalla de nueva contraseña.
+///
+/// La marca se guarda (con el id del usuario) en el almacenamiento local, así
+/// que una recarga de la web sigue en /reset-password (QA O-2).
+class PasswordRecoveryController extends Notifier<bool> {
+  @override
+  bool build() {
+    final auth = ref.watch(authRepositoryProvider);
+    final store = ref.watch(recoveryFlagStoreProvider);
+    final sub = auth.watchPasswordRecovery().listen((_) async {
+      state = true;
+      await store.write(await auth.watchUserId().first);
+    });
+    ref.onDispose(sub.cancel);
+    unawaited(_restore(auth, store));
+    return false;
+  }
+
+  Future<void> _restore(AuthRepository auth, RecoveryFlagStore store) async {
+    final stored = await store.read();
+    if (stored == null) return;
+    final uid = await auth.watchUserId().first;
+    if (!ref.mounted) return;
+    if (uid == stored) {
+      state = true;
+    } else {
+      // La marca era de otra sesión: se descarta.
+      await store.write(null);
+    }
+  }
+
+  void finish() {
+    state = false;
+    unawaited(ref.read(recoveryFlagStoreProvider).write(null));
+  }
+}
+
+final passwordRecoveryProvider =
+    NotifierProvider<PasswordRecoveryController, bool>(
+      PasswordRecoveryController.new,
+    );
 
 /// Mensaje legible de un error de autenticación o registro.
 String errorMessage(Object error) => switch (error) {

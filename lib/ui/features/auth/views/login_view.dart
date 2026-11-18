@@ -90,7 +90,17 @@ class _LoginViewState extends ConsumerState<LoginView> {
             ),
           ),
         ),
-        const SizedBox(height: 20),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: TextButton(
+            key: const Key('login-forgot'),
+            onPressed: busy
+                ? null
+                : () => context.push(AppRoutes.forgotPassword),
+            child: const Text('¿Olvidaste tu contraseña?'),
+          ),
+        ),
+        const SizedBox(height: 8),
         if (state case AsyncError(:final error)) ...[
           FormError(errorMessage(error)),
           const SizedBox(height: 12),
@@ -151,6 +161,11 @@ class _LoginViewState extends ConsumerState<LoginView> {
           key: const Key('login-go-signup'),
           onPressed: busy ? null : () => context.go(AppRoutes.signUp),
           child: const Text('¿No tienes cuenta? Crear cuenta'),
+        ),
+        TextButton(
+          key: const Key('login-about'),
+          onPressed: () => context.push(AppRoutes.about),
+          child: const Text('Acerca de y licencias'),
         ),
       ],
     );
