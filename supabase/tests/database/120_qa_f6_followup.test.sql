@@ -4,6 +4,9 @@ begin;
 select plan(13);
 
 -- Fixtures (carga masiva sin triggers ni FK; luego se vuelve a `origin`) ----
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-00000000a7a1', 'f6b-dueno@test.local'),
+  ('00000000-0000-0000-0000-00000000a7f1', 'f6b-vet-libre@test.local');
 set local session_replication_role = replica;
 insert into public.user_roles (user_id, role) values
   ('00000000-0000-0000-0000-00000000a7a1', 'owner'),
@@ -103,7 +106,7 @@ select ok(exists (
     select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private' and p.proname = 'find_available_vets'
       and pg_get_functiondef(p.oid) like '%t.period @> v_day%'
-      and pg_get_functiondef(p.oid) like '%exit when v_found >= 20%'),
+      and pg_get_functiondef(p.oid) like '%v_found < 20%'),
   'los días libres completos se excluyen de los candidatos y se recorre hasta reunir 20');
 -- Pasado mañana los 30 con día libre siguen libres (rango de 3 días) y los 25
 -- con agenda llena tienen su horario disponible: aparecen hasta 20, los más cercanos.

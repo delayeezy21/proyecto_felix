@@ -5,10 +5,10 @@
 --   más lejos, available_vets devolvía 0. Ahora:
 --   * se excluyen de los candidatos los vets con un día libre que cubre todo
 --     el día pedido (o sin horario semanal ese día);
---   * los candidatos se recorren por distancia (KNN sobre quote_origin) con un
---     cursor y se calculan sus horarios uno a uno hasta reunir 20 con horario
---     libre o agotar el radio. Es una paginación por distancia sin tamaño de
---     bloque fijo: nunca se descarta un vet libre por estar "fuera del bloque".
+--   * los candidatos se ordenan por distancia (KNN sobre quote_origin) y se
+--     recorren en bloques de 40 (horarios en una consulta por bloque) hasta
+--     reunir 20 con horario libre o agotar el radio: nunca se descarta un vet
+--     libre por estar fuera del primer bloque.
 -- QA-F6-06 (Bajo): una visita in_progress que nunca se completa quedaba
 --   abierta y el vet seguía viendo la dirección exacta y el teléfono.
 --   Decisión: expire_visits la cierra como `completed` (borde existente
@@ -206,8 +206,10 @@ declare
   v_day tstzrange;
   v_calls integer;
   v_found integer := 0;
-  v_slots jsonb;
-  c record;
+  v_ids uuid[];
+  v_n integer;
+  v_from integer;
+  v_rows integer;
 begin
   if v_uid is null or (select private.current_app_role()) is distinct from 'owner' then
     raise exception 'Solo un dueño puede buscar veterinarios' using errcode = '42501';
@@ -245,12 +247,13 @@ begin
   v_day := tstzrange(p_date::timestamp at time zone 'America/Santiago',
                      (p_date + 1)::timestamp at time zone 'America/Santiago');
 
-  -- Cursor por distancia (KNN sobre vet_bases_quote_origin_gix): se piden
-  -- filas a medida que se necesitan, así que solo se calculan horarios hasta
-  -- reunir 20 vets con horario libre o agotar el radio.
-  for c in
-    select v.user_id, v.display_name, v.bio,
-           extensions.st_distance(b.quote_origin, v_location) as dist
+  -- 1) Candidatos compatibles en el radio, ordenados por distancia (KNN sobre
+  --    vet_bases_quote_origin_gix), sin los que tienen día libre todo el día.
+  select array_agg(x.user_id order by x.knn, x.display_name)
+  into v_ids
+  from (
+    select v.user_id, v.display_name,
+           b.quote_origin operator(extensions.<->) v_location as knn
     from public.vet_bases b
     join public.vet_profiles v on v.user_id = b.vet_id and v.status = 'approved'
     join public.vet_species vs on vs.vet_id = b.vet_id and vs.species_id = v_species
@@ -262,20 +265,36 @@ begin
       -- Día libre que cubre todo el día: no es candidato (QA-F6-07).
       and not exists (select 1 from public.vet_time_off t
                       where t.vet_id = b.vet_id and t.period @> v_day)
-    order by b.quote_origin operator(extensions.<->) v_location, v.display_name
-  loop
-    select jsonb_agg(x.starts_at order by x.starts_at) into v_slots
-    from private.vet_open_slots(c.user_id, p_date) as x (starts_at);
-    continue when v_slots is null;
-    return next jsonb_build_object(
-      'vet_id', c.user_id,
-      'display_name', c.display_name,
-      'bio', c.bio,
-      -- Desde el origen aproximado (QA-F5-01), redondeada al km.
-      'distance_km', round(c.dist / 1000.0)::integer,
-      'slots', v_slots);
-    v_found := v_found + 1;
-    exit when v_found >= 20;
+  ) x;
+
+  -- 2) Paginación por distancia: bloques de 40 candidatos, en orden, hasta
+  --    reunir 20 vets con horario libre o agotar el radio. Cada bloque calcula
+  --    sus horarios en una sola consulta (el plan de vet_open_slots se
+  --    reutiliza dentro del bloque).
+  v_n := coalesce(array_length(v_ids, 1), 0);
+  v_from := 1;
+  while v_from <= v_n and v_found < 20 loop
+    return query
+    select jsonb_build_object(
+             'vet_id', v.user_id,
+             'display_name', v.display_name,
+             'bio', v.bio,
+             -- Desde el origen aproximado (QA-F5-01), redondeada al km.
+             'distance_km',
+               round(extensions.st_distance(b.quote_origin, v_location) / 1000.0)::integer,
+             'slots', s.slots)
+    from unnest(v_ids[v_from:v_from + 39]) with ordinality as u (id, ord)
+    join public.vet_profiles v on v.user_id = u.id
+    join public.vet_bases b on b.vet_id = u.id
+    cross join lateral (
+      select jsonb_agg(x.starts_at order by x.starts_at) as slots
+      from private.vet_open_slots(u.id, p_date) as x (starts_at)) s
+    where s.slots is not null
+    order by u.ord
+    limit 20 - v_found;
+    get diagnostics v_rows = row_count;
+    v_found := v_found + v_rows;
+    v_from := v_from + 40;
   end loop;
 end;
 $$;
