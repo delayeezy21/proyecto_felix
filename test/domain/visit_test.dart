@@ -10,7 +10,7 @@ void main() {
       expect(wires(VisitStatus.pendingVet), 'accepted,rejected');
       expect(wires(VisitStatus.accepted), 'en_route,cancelled_vet');
       expect(wires(VisitStatus.enRoute), 'arrived,cancelled_vet');
-      expect(wires(VisitStatus.arrived), 'in_progress');
+      expect(wires(VisitStatus.arrived), 'in_progress,cancelled_vet');
       expect(wires(VisitStatus.inProgress), 'completed');
       for (final s in [
         VisitStatus.completed,

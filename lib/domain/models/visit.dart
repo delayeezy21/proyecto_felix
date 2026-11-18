@@ -67,6 +67,7 @@ List<VetAction> vetActionsFor(VisitStatus status) => switch (status) {
   ],
   VisitStatus.arrived => const [
     VetAction(VisitStatus.inProgress, 'Iniciar atención'),
+    VetAction(VisitStatus.cancelledVet, 'Cancelar visita', destructive: true),
   ],
   VisitStatus.inProgress => const [
     VetAction(VisitStatus.completed, 'Completar visita'),

@@ -10,7 +10,7 @@
 // docs/qa/; pasa a OK solo cuando se corrige). Correr DESPUÉS de
 // `supabase test db`: publica versiones de pricing_config.
 // Solo crea usuarios *@test.local y los borra al final.
-import { sqlRunner } from './sql.mjs';
+import { backdateStart, shiftVisit, sqlRunner, timeTravel } from './sql.mjs';
 
 const st = JSON.parse(process.argv[2]);
 const API = st.API_URL;
@@ -58,8 +58,8 @@ const cAt = async (lat, lng, tok) => (await rpc('communes_at_point', { p_lat: la
 const chile = (d) => d.toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
 const tomorrow = chile(new Date(Date.now() + 24 * 3600 * 1000));
 const dayAfter = chile(new Date(Date.now() + 48 * 3600 * 1000));
-const shift = (id, expr) => sql(`update public.visits set scheduled_at = ${expr},
-  slot = tstzrange(${expr}, ${expr} + interval '90 minutes') where id = '${id}'`);
+// Fase 6 (QA-F6 riesgo): el horario solo se mueve con la marca felix.time_travel.
+const shift = (id, expr) => shiftVisit(sql, id, expr);
 
 try {
   const general = (await rest('specialties?select=id&slug=eq.general', srv)).json[0].id;
@@ -245,12 +245,12 @@ try {
   await tr(p1, 'accepted', V.token); await expose(p1, 'accepted');
   shift(p1, "now() + interval '30 minutes'");
   for (const s of ['en_route', 'arrived', 'in_progress']) { await tr(p1, s, V.token); await expose(p1, s); }
-  await tr(p1, 'completed', V.token); await expose(p1, 'completed');
+  backdateStart(sql, p1); await tr(p1, 'completed', V.token); await expose(p1, 'completed');
   const p2 = await newVisit(b); await tr(p2, 'rejected', V.token, 'Sin cupo'); await expose(p2, 'rejected');
   const p3 = await newVisit(b); await tr(p3, 'accepted', V.token); await tr(p3, 'cancelled_owner', b.token); await expose(p3, 'cancelled_owner');
   const p4 = await newVisit(b); await tr(p4, 'accepted', V.token); await tr(p4, 'cancelled_vet', V.token, 'Imprevisto'); await expose(p4, 'cancelled_vet');
   const p5 = await newVisit(b);
-  sql(`update public.visits set confirm_deadline = now() - interval '1 minute' where id = '${p5}'; select private.expire_visits();`);
+  timeTravel(sql, `update public.visits set confirm_deadline = now() - interval '1 minute' where id = '${p5}'; select private.expire_visits();`);
   await expose(p5, 'expired');
   const expect = { pending_vet: false, accepted: true, en_route: true, arrived: true, in_progress: true, completed: false, rejected: false, cancelled_owner: false, cancelled_vet: false, expired: false };
   const wrong = Object.entries(expect).filter(([k, e]) => !seen[k] || seen[k].exact !== e || (e && seen[k].phone !== '+56 9 2222 3333'));
@@ -266,7 +266,7 @@ try {
     check(m.status === 200 && m.json.length === 0 && t.json.length === 0, `${who}: 0 visitas en my_visits y en la tabla`);
   }
   const admEv = await rest(`visit_events?select=visit_id,actor_id,to_status,at&visit_id=eq.${p1}`, { token: admin.token });
-  known(admEv.json.length === 0, 'QA-F6-02', `el admin NO lee el historial individual de una visita (visit_events: ${admEv.json.length} filas con actor_id y hora)`);
+  known(admEv.status >= 400 || admEv.json.length === 0, 'QA-F6-02', `el admin NO lee el historial individual de una visita (visit_events: HTTP ${admEv.status}, ${Array.isArray(admEv.json) ? admEv.json.length : 0} filas)`);
   const admTO = await rest(`vet_time_off?select=vet_id,period`, { token: admin.token });
   console.log(`INFO    el admin lee vet_time_off (${admTO.json.length} filas): dato del vet, aceptable para moderación`);
   for (const lim of [-5, 0, 1000000]) {
@@ -315,10 +315,14 @@ try {
   // Vet marca "en camino" y no llega: el dueño solo puede cancelar pagando.
   const k4 = await newVisit(c); await tr(k4, 'accepted', V.token); shift(k4, "now() + interval '110 minutes'");
   await tr(k4, 'en_route', V.token);
-  sql(`update public.visits set scheduled_at = now() - interval '5 hours', slot = tstzrange(now() - interval '5 hours', now() - interval '210 minutes') where id = '${k4}'; select private.expire_visits();`);
-  const k4s = (await mv(k4, c.token)).status;
-  known(k4s !== 'en_route', 'QA-F6-03', `una visita "en camino" 5 h después de su hora se cierra sola (estado: ${k4s})`);
-  const k4c = await tr(k4, 'cancelled_owner', c.token);
+  timeTravel(sql, `update public.visits set scheduled_at = now() - interval '5 hours', slot = tstzrange(now() - interval '5 hours', now() - interval '210 minutes') where id = '${k4}'; select private.expire_visits();`);
+  const k4o = await mv(k4, c.token);
+  known(k4o.status !== 'en_route' && k4o.cancel_fee === 0, 'QA-F6-03', `una visita "en camino" 5 h después de su hora se cierra sola y sin cargo (estado: ${k4o.status})`);
+  // Atrasado pero antes del cierre automático: cancelar es gratis desde la hora + 30 min.
+  const k4b = await newVisit(c); await tr(k4b, 'accepted', V.token); shift(k4b, "now() + interval '110 minutes'");
+  await tr(k4b, 'en_route', V.token);
+  shift(k4b, "now() - interval '40 minutes'");
+  const k4c = await tr(k4b, 'cancelled_owner', c.token);
   known(k4c.json?.cancel_fee === 0, 'QA-F6-03', `si el vet marcó "en camino" y no llegó, cancelar no le cobra al dueño (cargo $${k4c.json?.cancel_fee})`);
   // Completar antes de la hora.
   const k5 = await newVisit(a); await tr(k5, 'accepted', V.token); shift(k5, "now() + interval '115 minutes'");
@@ -335,7 +339,7 @@ try {
   const j = sql("select count(*) filter (where status = 'succeeded') || '/' || count(*) from cron.job_run_details d join cron.job j using (jobid) where j.jobname = 'expire-visits'");
   check(Number(j.split('/')[0]) >= 1, `expire-visits corre en pg_cron (${j} ejecuciones exitosas/total)`);
   const ng = await newVisit(b); await tr(ng, 'accepted', V.token);
-  sql(`update public.visits set scheduled_at = now() - interval '61 minutes', slot = tstzrange(now() - interval '61 minutes', now() + interval '29 minutes') where id = '${ng}'; select private.expire_visits();`);
+  timeTravel(sql, `update public.visits set scheduled_at = now() - interval '61 minutes', slot = tstzrange(now() - interval '61 minutes', now() + interval '29 minutes') where id = '${ng}'; select private.expire_visits();`);
   const ngs = await mv(ng, b.token);
   check(ngs.status === 'cancelled_vet' && ngs.cancel_fee === 0, `confirmada que nunca empieza → cancelled_vet sin cargo (${ngs.status})`);
   const ngEv = sql(`select actor_id is null from public.visit_events where visit_id = '${ng}' order by id desc limit 1`);

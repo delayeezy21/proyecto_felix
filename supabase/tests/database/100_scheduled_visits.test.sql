@@ -3,7 +3,7 @@
 -- de la dirección, pago solo al completar, cargo de cancelación y
 -- expiración por cron.
 begin;
-select plan(109);
+select plan(111);
 
 -- Fixtures ------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -104,10 +104,19 @@ $$;
 create function pg_temp.mv(p_v uuid) returns jsonb language sql as $$
   select j from public.my_visits(200) j where j ->> 'id' = p_v::text;
 $$;
--- Mueve una visita (como postgres) para simular el paso del tiempo.
+-- Simula el paso del tiempo: solo una sesión directa de postgres con
+-- felix.time_travel = 'on' puede mover el horario (riesgo de QA fase 6).
+create function pg_temp.tt(p_sql text) returns void language plpgsql as $$
+begin
+  perform set_config('felix.time_travel', 'on', true);
+  execute p_sql;
+  perform set_config('felix.time_travel', 'off', true);
+end;
+$$;
 create function pg_temp.shift(p_v uuid, p_at timestamptz) returns void language sql as $$
-  update public.visits set scheduled_at = p_at,
-    slot = tstzrange(p_at, p_at + interval '90 minutes') where id = p_v;
+  select pg_temp.tt(format('update public.visits set scheduled_at = %L::timestamptz,
+    slot = tstzrange(%L::timestamptz, %L::timestamptz + interval ''90 minutes'') where id = %L',
+    p_at, p_at, p_at, p_v));
 $$;
 grant execute on function pg_temp.id(text), pg_temp.ts(text), pg_temp.spec(),
   pg_temp.q(uuid), pg_temp.book(uuid, timestamptz), pg_temp.tr(uuid, text, text),
@@ -269,6 +278,12 @@ select throws_ok(
 select throws_ok(
   $$ update public.visits set quote = '{"total": 1}' where id = pg_temp.id('v1') $$,
   '42501', 'Los datos y el precio de una visita no se modifican', 'el precio congelado no se modifica');
+select throws_ok(
+  $$ update public.visits set scheduled_at = scheduled_at + interval '1 day',
+       slot = tstzrange(lower(slot) + interval '1 day', upper(slot) + interval '1 day')
+     where id = pg_temp.id('v1') $$,
+  '42501', 'El horario de una visita no se modifica',
+  'el horario no se mueve sin la marca de viaje en el tiempo (solo tests)');
 
 -- Accesos indebidos ------------------------------------------------------------
 select pg_temp.login('00000000-0000-0000-0000-0000000009a1');
@@ -332,9 +347,9 @@ set local role authenticated;
 select is((pg_temp.mv(pg_temp.id('v1')) ->> 'cancel_fee_now')::int, 0,
   'más de 2 h antes, cancelar es gratis');
 
--- Paso del tiempo: la visita empieza en 1 h.
+-- Paso del tiempo: la visita empieza en 20 min.
 reset role;
-select pg_temp.shift(pg_temp.id('v1'), date_trunc('minute', now()) + interval '1 hour');
+select pg_temp.shift(pg_temp.id('v1'), date_trunc('minute', now()) + interval '20 minutes');
 select pg_temp.login('00000000-0000-0000-0000-0000000009a1');
 set local role authenticated;
 select is((pg_temp.mv(pg_temp.id('v1')) ->> 'cancel_fee_now')::int, 5000,
@@ -348,6 +363,14 @@ select throws_ok($$ select pg_temp.tr(pg_temp.id('v1'), 'in_progress') $$,
   '22023', 'Transición no permitida: en_route → in_progress', 'no se salta "llegó"');
 select is((pg_temp.tr(pg_temp.id('v1'), 'arrived') ->> 'status'), 'arrived', 'llegó');
 select is((pg_temp.tr(pg_temp.id('v1'), 'in_progress') ->> 'status'), 'in_progress', 'en curso');
+select throws_ok($$ select pg_temp.tr(pg_temp.id('v1'), 'completed') $$,
+  '22023', 'La atención debe durar al menos 10 minutos antes de completarla',
+  'QA-F6-04: no se completa sin una atención mínima');
+reset role;
+select pg_temp.tt(format('update public.visits set started_at = now() - interval ''15 minutes'' where id = %L',
+  pg_temp.id('v1')));
+select pg_temp.login('00000000-0000-0000-0000-0000000009b1');
+set local role authenticated;
 select is((pg_temp.tr(pg_temp.id('v1'), 'completed') ->> 'status'), 'completed', 'completada');
 select is((pg_temp.mv(pg_temp.id('v1')) -> 'exact'), 'null'::jsonb,
   'cerrada la visita, el vet vuelve a ver solo lo aproximado');
@@ -471,7 +494,7 @@ set local role authenticated;
 select pg_temp.tr(pg_temp.id('v8'), 'accepted');
 reset role;
 -- v7: venció el plazo de confirmación. v8: confirmada que nunca empezó.
-update public.visits set confirm_deadline = now() - interval '1 minute' where id = pg_temp.id('v7');
+select pg_temp.tt(format('update public.visits set confirm_deadline = now() - interval ''1 minute'' where id = %L', pg_temp.id('v7')));
 select pg_temp.shift(pg_temp.id('v8'), date_trunc('minute', now()) - interval '2 hours');
 select pg_temp.login('00000000-0000-0000-0000-0000000009b1');
 set local role authenticated;

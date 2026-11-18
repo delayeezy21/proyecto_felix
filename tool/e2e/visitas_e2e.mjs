@@ -2,7 +2,7 @@
 // y SQL directo (docker exec) solo para simular el paso del tiempo.
 // Uso: node tool/e2e/visitas_e2e.mjs "$(npx --yes supabase@3.2.0 status -o json | sed -n '/^{/,$p')"
 // Crea usuarios ficticios y los borra al final.
-import { sqlRunner } from './sql.mjs';
+import { backdateStart, shiftVisit, sqlRunner, timeTravel } from './sql.mjs';
 
 const st = JSON.parse(process.argv[2]);
 const API = st.API_URL;
@@ -48,8 +48,7 @@ const register = (u, role, name, communeId = null, phone = null) => rpc('complet
 // Hora de Chile para "mañana".
 const tomorrow = new Date(Date.now() + 24 * 3600 * 1000)
   .toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
-const shift = (visitId, expr) => sql(`update public.visits set scheduled_at = ${expr},
-  slot = tstzrange(${expr}, ${expr} + interval '90 minutes') where id = '${visitId}'`);
+const shift = (visitId, expr) => shiftVisit(sql, visitId, expr);
 
 try {
   const ownerA = await newUser('dueno-a-f6');
@@ -173,12 +172,16 @@ try {
   check(early.status === 400 && /2 horas antes/.test(early.json.message), 'no puede salir con un día de anticipación');
   check((await tr(v1, 'completed', vet.token)).status === 400, 'no se salta estados (accepted → completed)');
 
-  // Paso del tiempo: la visita empieza en 1 h.
-  shift(v1, "date_trunc('minute', now()) + interval '1 hour'");
-  for (const s of ['en_route', 'arrived', 'in_progress', 'completed']) {
+  // Paso del tiempo: la visita empieza en 20 min.
+  shift(v1, "date_trunc('minute', now()) + interval '20 minutes'");
+  for (const s of ['en_route', 'arrived', 'in_progress']) {
     const r = await tr(v1, s, vet.token);
     check(r.json?.status === s, `el vet avanza a ${s}`);
   }
+  const tooSoon = await tr(v1, 'completed', vet.token);
+  check(tooSoon.status === 400 && /10 minutos/.test(tooSoon.json.message), 'no se completa sin la atención mínima');
+  backdateStart(sql, v1);
+  check((await tr(v1, 'completed', vet.token)).json?.status === 'completed', 'el vet completa la visita');
   vv = await mv(v1, vet.token);
   check(vv && vv.exact === null, 'cerrada la visita, el vet vuelve a ver solo lo aproximado');
   check((await tr(v1, 'in_progress', vet.token)).status === 400, 'una visita completada no se reabre');
@@ -219,7 +222,7 @@ try {
   // --- Expiración (pg_cron) --------------------------------------------------------------
   check(sql("select schedule from cron.job where jobname = 'expire-visits'") === '* * * * *', 'pg_cron programa la expiración cada minuto');
   const v5 = (await book(await quote(), at(30))).json.id;
-  sql(`update public.visits set confirm_deadline = now() - interval '1 minute' where id = '${v5}'`);
+  timeTravel(sql, `update public.visits set confirm_deadline = now() - interval '1 minute' where id = '${v5}'`);
   const lateAccept = await tr(v5, 'accepted', vet.token);
   check(lateAccept.status === 400 && /plazo/.test(lateAccept.json.message), 'el vet no confirma fuera de plazo');
   sql('select private.expire_visits()');
@@ -237,6 +240,19 @@ try {
   check(((await rpc('my_visits', {}, admin.token)).json ?? []).length === 0, 'el admin no obtiene el detalle de visitas');
   check(((await call('/rest/v1/visits?select=id', { token: admin.token })).json ?? []).length === 0, 'el admin no lee filas de visitas');
   check(((await rpc('admin_visit_summary', {}, ownerA.token)).json ?? []).length === 0, 'un dueño no ve el resumen');
+  const evAdmin = await call(`/rest/v1/visit_events?select=*&visit_id=eq.${v1}`, { token: admin.token });
+  check(evAdmin.status >= 400, `QA-F6-02: el admin no lee visit_events fila a fila (HTTP ${evAdmin.status})`);
+
+  // --- QA-F6-01: vet aprobado sin punto de partida ------------------------------------------
+  const noBase = await newUser('vet-sin-base-f6');
+  await register(noBase, 'vet', 'Dr. Sin Base');
+  await svc(`/rest/v1/vet_profiles?user_id=eq.${noBase.id}`, { status: 'approved' }, 'PATCH');
+  await svc('/rest/v1/vet_species', { vet_id: noBase.id, species_id: perro });
+  await svc('/rest/v1/vet_specialties', { vet_id: noBase.id, specialty_id: general });
+  const qNoBase = await rpc('quote_visit', { p_pet_id: pet, p_address_id: addr, p_specialty_id: general,
+    p_mode: 'scheduled', p_vet_id: noBase.id }, ownerA.token);
+  check(qNoBase.status === 400 && /punto de partida/.test(qNoBase.json.message),
+    'QA-F6-01: no se cotiza con un vet sin punto de partida');
 
   // --- Días libres ------------------------------------------------------------------------
   const off = await rpc('add_time_off', { p_from: tomorrow, p_to: tomorrow }, vet.token);
