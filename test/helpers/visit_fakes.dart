@@ -163,8 +163,7 @@ class FakeVisitRepository implements VisitRepository {
   }
 
   @override
-  Future<List<VisitStatusCount>> adminSummary({int days = 30}) async =>
-      summary;
+  Future<List<VisitStatusCount>> adminSummary({int days = 30}) async => summary;
 }
 
 class FakeVetAgendaRepository implements VetAgendaRepository {

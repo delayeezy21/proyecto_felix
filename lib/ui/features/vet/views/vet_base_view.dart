@@ -148,9 +148,10 @@ class _BaseFormState extends ConsumerState<_BaseForm> {
         const InfoBanner(
           icon: Icons.lock_outline,
           message:
-              'Solo tú ves este punto. Los dueños ven únicamente la distancia '
-              'aproximada a su dirección, y con ella se calcula el recargo '
-              'por distancia.',
+              'Solo tú ves este punto. Para proteger tu ubicación, la '
+              'distancia y el recargo se calculan desde un punto aproximado '
+              '(a 1–2 km de aquí), así que el precio puede variar un poco. '
+              'Los dueños solo ven la distancia redondeada.',
         ),
         const SizedBox(height: 16),
         AddressPicker(
