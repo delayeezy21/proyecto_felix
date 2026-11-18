@@ -32,7 +32,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Los estados de la visita cambian solo vía `transition_visit` (el trigger `private.guard_visit` rechaza todo otro cambio). Agenda en hora de Chile; slot = 60 min + 30 de traslado (exclusión `visits_no_overlap`); se reserva con ≥ 3 h; pg_cron `expire-visits` expira las pendientes y cierra como `cancelled_vet` (sin cargo) las confirmadas sin "en camino" 1 h después. El vet ve la dirección exacta solo vía `my_visits` (accepted → in_progress); el admin, solo `admin_visit_summary`.
 - El horario de una visita es inmutable; los tests lo mueven solo desde una sesión directa de `postgres` con `felix.time_travel = 'on'` (`tool/e2e/sql.mjs`, `docker exec` + psql, solo stacks locales). Reglas de llegar/iniciar/completar y cierres automáticos: `private.visit_timing()`; "en curso" se cierra como completada a las 6 h (`visit_progress_limits`) (arquitectura §5).
 - La ficha clínica es solo inserción: las correcciones crean una entrada con `supersedes_id`.
-- El vet lee la ficha solo vía la RPC `get_pet_record` (registra cada lectura); no tiene `SELECT` directo.
+- El vet lee la ficha solo vía `get_pet_record` (registra cada lectura; sin `SELECT` directo) y baja adjuntos solo con URL firmada de 60 s (Edge Function `clinical-attachment-url`).
 - Supabase local concede ALL por defecto a `anon`/`authenticated` en tablas nuevas: cada migración hace `revoke all` + `grant` mínimos (con UPDATE por columna) + `enable/force row level security` + test pgTAP. Las invariantes de `000_base.test.sql` lo vigilan.
 - El registro se completa con la RPC `complete_registration` (SECURITY INVOKER); el rol solo se autoasigna como `owner`/`vet`. El admin se crea por SQL.
 - "Olvidé mi contraseña": `resetPasswordForEmail` vuelve con el evento `passwordRecovery`; mientras `passwordRecoveryProvider` sea true, el router solo deja `/reset-password`.
@@ -51,7 +51,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Urgencia: radio 5 → 10 → 20 km, tandas de 3 vets × 60 s, máximo 10 min; si no hay vet, sin cobro y se ofrece agendar o ver clínicas 24 h.
 - Recargo de urgencia 30 % de la base; $500/km sobre 5 km.
 - Cancelación gratis hasta 2 h antes (agendada) o antes de "en camino" (urgente); después $5.000 (`cancel_fee`, `cancel_free_hours` de la versión congelada en la cotización).
-- Acceso del vet a la ficha: desde que acepta hasta 30 días después de cerrar la visita, o por autorización revocable del dueño.
+- Acceso del vet a la ficha: desde que acepta hasta 30 días después de completar la visita (también si la cerró el sistema, `closed_by_system`; cancelada = fin inmediato), o por autorización revocable del dueño. Escribe solo desde "llegó".
 - Dirección exacta visible solo para el vet asignado mientras la visita está activa.
 
 ## Seguridad

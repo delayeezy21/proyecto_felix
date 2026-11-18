@@ -196,7 +196,12 @@ class _PetTile extends StatelessWidget {
       ),
       title: Text(pet.name),
       subtitle: Text(details),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: IconButton(
+        key: Key('pet-record-${pet.id}'),
+        tooltip: 'Ficha clínica de ${pet.name}',
+        icon: const Icon(Icons.medical_information_outlined),
+        onPressed: () => context.push(AppRoutes.ownerPetRecord(pet.id)),
+      ),
       onTap: () => context.push(AppRoutes.ownerPet(pet.id)),
     );
   }

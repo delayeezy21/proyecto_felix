@@ -22,6 +22,8 @@ import 'package:proyecto_felix/ui/features/owner/views/owner_home_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_profile_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_visit_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/pet_form_view.dart';
+import 'package:proyecto_felix/ui/features/record/views/access_log_view.dart';
+import 'package:proyecto_felix/ui/features/record/views/pet_record_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_base_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_profile_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_visits_view.dart';
@@ -93,6 +95,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: 'pets/:id',
             builder: (context, state) =>
                 PetFormView(petId: state.pathParameters['id']),
+            routes: [
+              GoRoute(
+                path: 'record',
+                builder: (context, state) =>
+                    PetRecordView(petId: state.pathParameters['id']!),
+                routes: [
+                  GoRoute(
+                    path: 'log',
+                    builder: (context, state) =>
+                        AccessLogView(petId: state.pathParameters['id']!),
+                  ),
+                ],
+              ),
+            ],
           ),
           GoRoute(
             path: 'profile',
@@ -140,6 +156,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'base',
             builder: (context, state) => const VetBaseView(),
+          ),
+          GoRoute(
+            path: 'record/:petId',
+            builder: (context, state) => PetRecordView(
+              petId: state.pathParameters['petId']!,
+              visitId: state.uri.queryParameters['visit'],
+            ),
           ),
         ],
       ),

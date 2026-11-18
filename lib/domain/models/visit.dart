@@ -159,6 +159,12 @@ class Visit {
     this.vetPayout,
     this.distanceKm,
     this.exact,
+    this.petId,
+    this.vetId,
+    this.closedBySystem = false,
+    this.recordAccess = false,
+    this.recordWritable = false,
+    this.recordUntil,
   });
 
   factory fromJson(Map<String, dynamic> j) {
@@ -192,6 +198,12 @@ class Visit {
       exact: exact is Map<String, dynamic>
           ? VisitExactAddress.fromJson(exact)
           : null,
+      petId: j['pet_id'] as String?,
+      vetId: j['vet_id'] as String?,
+      closedBySystem: j['closed_by_system'] as bool? ?? false,
+      recordAccess: j['record_access'] as bool? ?? false,
+      recordWritable: j['record_writable'] as bool? ?? false,
+      recordUntil: date('record_until'),
     );
   }
 
@@ -226,6 +238,20 @@ class Visit {
   final int? vetPayout;
   final double? distanceKm;
   final VisitExactAddress? exact;
+
+  final String? petId;
+
+  /// Vet asignado (solo en la vista del dueño; dato público).
+  final String? vetId;
+
+  /// La cerró el sistema (cron), no el vet ni el dueño (O-6).
+  final bool closedBySystem;
+
+  // Ficha clínica (vista del vet): acceso vigente por esta visita, si puede
+  // escribir en ella y hasta cuándo (null = mientras la visita esté activa).
+  final bool recordAccess;
+  final bool recordWritable;
+  final DateTime? recordUntil;
 
   bool get canPay => isOwnerView && status == VisitStatus.completed && !paid;
 

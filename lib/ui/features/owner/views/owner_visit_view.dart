@@ -154,6 +154,14 @@ class _Detail extends ConsumerWidget {
           const SizedBox(height: 8),
           Text('Motivo: ${v.cancelReason}', style: t.bodySmall),
         ],
+        if (v.closedBySystem) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Cerrada automáticamente por el sistema.',
+            key: const Key('visit-closed-by-system'),
+            style: t.bodySmall,
+          ),
+        ],
         if (v.quote != null) ...[
           const SizedBox(height: 16),
           QuoteBreakdown(quote: v.quote!, frozen: true),

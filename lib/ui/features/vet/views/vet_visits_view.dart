@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart' show formatClp;
 import 'package:proyecto_felix/domain/models/visit.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
@@ -186,10 +188,34 @@ class _VisitCard extends ConsumerWidget {
               ),
             if ((v.cancelReason ?? '').isNotEmpty)
               Text('Motivo del cierre: ${v.cancelReason}', style: t.bodySmall),
+            if (v.closedBySystem)
+              Text(
+                'Cerrada automáticamente por el sistema.',
+                key: Key('vet-visit-system-${v.id}'),
+                style: t.bodySmall,
+              ),
+            if (v.recordAccess && v.petId != null)
+              Text(
+                v.recordUntil == null
+                    ? 'Acceso a la ficha mientras la visita esté activa.'
+                    : 'Acceso a la ficha hasta el '
+                          '${formatSlot(v.recordUntil!)}.',
+                style: t.bodySmall,
+              ),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
+                if (v.recordAccess && v.petId != null)
+                  OutlinedButton.icon(
+                    key: Key('vet-record-${v.id}'),
+                    onPressed: () =>
+                        context.push(AppRoutes.vetRecord(v.petId!, v.id)),
+                    icon: const Icon(Icons.medical_information_outlined),
+                    label: Text(
+                      v.recordWritable ? 'Ficha y registro' : 'Ver ficha',
+                    ),
+                  ),
                 for (final a in vetActionsFor(v.status))
                   if (a.destructive)
                     OutlinedButton(
