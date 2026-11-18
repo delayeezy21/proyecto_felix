@@ -5,9 +5,12 @@ import 'package:proyecto_felix/domain/models/pricing.dart';
 /// Desglose del precio cotizado por el servidor. Solo muestra montos que ya
 /// vienen calculados (la app nunca recalcula el precio).
 class QuoteBreakdown extends StatelessWidget {
-  const new({required this.quote, super.key});
+  const new({required this.quote, this.frozen = false, super.key});
 
   final Quote quote;
+
+  /// Precio ya congelado en una visita (no muestra la vigencia).
+  final bool frozen;
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +84,8 @@ class QuoteBreakdown extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Precio calculado por Felix y válido hasta las $time. '
+              '${frozen ? 'Precio congelado al reservar.' : 'Precio calculado '
+                        'por Felix y válido hasta las $time.'} '
               'Pago simulado: no se cobra dinero real.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,

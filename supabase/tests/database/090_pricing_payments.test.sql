@@ -1,7 +1,7 @@
 -- Fase 5: precios (tabla de casos), cotización congelada, pagos simulados,
 -- aportes y RLS de fundaciones.
 begin;
-select plan(105);
+select plan(106);
 
 -- Fixtures ------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -112,6 +112,33 @@ returns text language sql as $$
                                p_upct, p_per_km, p_free_km, p_disc, p_waive, p_prev, p_cod) b;
 $$;
 grant execute on function pg_temp.spec(text), pg_temp.id(text) to authenticated;
+
+-- Desde la fase 6 la app solo paga visitas completadas (simulate_payment
+-- recibe una visita). Para probar el reparto de la fase 5 sin armar una
+-- visita, este helper replica el cobro con las funciones internas: consume
+-- la cotización (como book_visit) y registra el pago (como pay_visit_simulated).
+create function pg_temp.pay(p_q uuid, p_fail boolean default false)
+returns jsonb language plpgsql security definer as $$
+declare
+  v public.quotes;
+  p public.payments;
+begin
+  if p_fail then
+    select * into v from public.quotes q
+    where q.id = p_q and q.owner_id = auth.uid() and q.consumed_at is null
+      and q.expires_at > now();
+    if not found then
+      raise exception 'La cotización no existe, venció o ya fue usada' using errcode = '22023';
+    end if;
+  else
+    v := private.consume_quote(p_q, auth.uid());
+  end if;
+  p := private.record_payment(v.owner_id, null, null, v.id, v.foundation_id, 'visit',
+    v.service_price, v.platform_fee, v.foundation_share, v.vet_payout, v.extra_donation, p_fail);
+  return jsonb_build_object('status', p.status, 'platform_fee', p.platform_fee);
+end;
+$$;
+grant execute on function pg_temp.pay(uuid, boolean) to authenticated;
 
 -- Estructura y privilegios ----------------------------------------------------
 select ok((select bool_and(relrowsecurity and relforcerowsecurity) from pg_class
@@ -383,7 +410,10 @@ select is((public.quote_visit('00000000-0000-0000-0000-00000000e0a1',
   'una cotización nueva usa la versión vigente (26.990 + 6 km × 800 = 31.790 × 20 % = 6.358)');
 
 -- Pago simulado -----------------------------------------------------------------
-select is((public.simulate_payment(pg_temp.id('q1')) ->> 'platform_fee')::int, 4274,
+-- Fase 6: la app ya no paga cotizaciones sueltas (solo visitas completadas).
+select throws_ok($$ select public.simulate_payment(pg_temp.id('q1')) $$,
+  '22023', 'La visita no existe', 'simulate_payment ya no acepta una cotización');
+select is((pg_temp.pay(pg_temp.id('q1')) ->> 'platform_fee')::int, 4274,
   'el pago usa el precio congelado de la cotización');
 select is((select concat_ws(',', status, provider, service_price, platform_fee,
                             foundation_share, vet_payout, extra_donation, total, foundation_id)
@@ -392,18 +422,18 @@ select is((select concat_ws(',', status, provider, service_price, platform_fee,
   'pago simulado con el reparto completo y la fundación de la cotización');
 select ok((select consumed_at is not null from public.quotes where id = pg_temp.id('q1')),
   'la cotización queda usada');
-select throws_ok($$ select public.simulate_payment(pg_temp.id('q1')) $$,
+select throws_ok($$ select pg_temp.pay(pg_temp.id('q1')) $$,
   '22023', 'La cotización ya fue usada', 'una cotización no se paga dos veces');
 select throws_ok(
   $$ update public.payments set total = 1 where quote_id = pg_temp.id('q1') $$,
   '42501', null, 'el dueño no modifica pagos');
 
 -- Pago fallido: queda registrado, sin aportes, y la cotización sigue usable.
-select is((public.simulate_payment(pg_temp.id('q_urg'), true) ->> 'status'), 'simulated_failed',
+select is((pg_temp.pay(pg_temp.id('q_urg'), true) ->> 'status'), 'simulated_failed',
   'se puede simular un pago rechazado');
 select ok((select consumed_at is null from public.quotes where id = pg_temp.id('q_urg')),
   'un pago fallido no consume la cotización');
-select is((public.simulate_payment(pg_temp.id('q_urg')) ->> 'status'), 'simulated_paid',
+select is((pg_temp.pay(pg_temp.id('q_urg')) ->> 'status'), 'simulated_paid',
   'reintento exitoso después del fallo');
 select is((select count(*)::int from public.payments), 3, 'el dueño A ve sus 3 pagos');
 select is((select count(*)::int from public.foundation_contributions), 0,
@@ -449,7 +479,7 @@ values ('00000000-0000-0000-0000-00000000e2a1', '00000000-0000-0000-0000-0000000
   now() - interval '2 hours', now() - interval '1 hour');
 select pg_temp.login('00000000-0000-0000-0000-0000000008a1');
 set local role authenticated;
-select throws_ok($$ select public.simulate_payment('00000000-0000-0000-0000-00000000e2a1') $$,
+select throws_ok($$ select pg_temp.pay('00000000-0000-0000-0000-00000000e2a1') $$,
   '22023', 'La cotización venció. Vuelve a cotizar.', 'no se paga una cotización vencida');
 
 -- Otros roles no ven pagos ajenos ---------------------------------------------
@@ -458,7 +488,7 @@ select pg_temp.login('00000000-0000-0000-0000-0000000008a2');
 set local role authenticated;
 select is((select count(*)::int from public.payments), 0, 'el dueño B no ve pagos de A');
 select is((select count(*)::int from public.quotes), 0, 'el dueño B no ve cotizaciones de A');
-select throws_ok($$ select public.simulate_payment(pg_temp.id('q_urg')) $$,
+select throws_ok($$ select pg_temp.pay(pg_temp.id('q_urg')) $$,
   '22023', null, 'el dueño B no paga una cotización de A');
 
 reset role;

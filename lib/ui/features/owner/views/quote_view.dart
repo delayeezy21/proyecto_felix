@@ -11,7 +11,8 @@ import 'package:proyecto_felix/ui/features/owner/view_models/quote_providers.dar
 import 'package:proyecto_felix/ui/features/owner/views/quote_breakdown.dart';
 
 /// Cotizar una visita: mascota, dirección, especialidad, tipo y fundación.
-/// Aún no agenda (fase 6): solo muestra el precio calculado por el servidor.
+/// Solo muestra el precio calculado por el servidor; para reservar con un vet
+/// y un horario se usa la pestaña Visitas (BookVisitView).
 class QuotePanel extends ConsumerStatefulWidget {
   const new({super.key});
 
@@ -110,7 +111,7 @@ class _QuotePanelState extends ConsumerState<QuotePanel> {
           const SizedBox(height: 4),
           const Text(
             'El precio lo calcula Felix con las tarifas vigentes. '
-            'Agendar llega pronto.',
+            'Para reservar, ve a la pestaña Visitas.',
           ),
           const SizedBox(height: 16),
           Form(

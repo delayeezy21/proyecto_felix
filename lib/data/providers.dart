@@ -5,6 +5,7 @@ import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
 import 'package:proyecto_felix/data/repositories/pricing_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
+import 'package:proyecto_felix/data/repositories/visit_repository.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -57,3 +58,11 @@ final sessionProvider = StreamProvider<SessionSnapshot>((ref) {
         : SignedIn(await profiles.fetchAccount()),
   );
 });
+
+final visitRepositoryProvider = Provider<VisitRepository>(
+  (ref) => SupabaseVisitRepository(ref.watch(supabaseClientProvider)),
+);
+
+final vetAgendaRepositoryProvider = Provider<VetAgendaRepository>(
+  (ref) => SupabaseVetAgendaRepository(ref.watch(supabaseClientProvider)),
+);

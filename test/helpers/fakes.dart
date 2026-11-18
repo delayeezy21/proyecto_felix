@@ -23,9 +23,11 @@ import 'package:proyecto_felix/domain/models/vet.dart';
 
 import 'owner_fakes.dart';
 import 'pricing_fakes.dart';
+import 'visit_fakes.dart';
 
 export 'owner_fakes.dart';
 export 'pricing_fakes.dart';
+export 'visit_fakes.dart';
 
 const configuredEnv = Env(
   supabaseUrl: 'http://127.0.0.1:54321',
@@ -217,6 +219,8 @@ Widget testApp({
   MapAdapter? map,
   FakeQuoteRepository? quotes,
   FakeFoundationRepository? foundations,
+  FakeVisitRepository? visits,
+  FakeVetAgendaRepository? agenda,
   FakeRecoveryFlagStore? recoveryStore,
   Env env = configuredEnv,
 }) => ProviderScope(
@@ -241,6 +245,10 @@ Widget testApp({
     quoteRepositoryProvider.overrideWithValue(quotes ?? FakeQuoteRepository()),
     foundationRepositoryProvider.overrideWithValue(
       foundations ?? FakeFoundationRepository(),
+    ),
+    visitRepositoryProvider.overrideWithValue(visits ?? FakeVisitRepository()),
+    vetAgendaRepositoryProvider.overrideWithValue(
+      agenda ?? FakeVetAgendaRepository(),
     ),
     recoveryFlagStoreProvider.overrideWithValue(
       recoveryStore ?? FakeRecoveryFlagStore(),

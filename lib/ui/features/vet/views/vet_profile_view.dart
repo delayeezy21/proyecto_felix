@@ -2,18 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/core/theme/app_theme.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
+import 'package:proyecto_felix/domain/models/visit.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 import 'package:proyecto_felix/ui/features/vet/view_models/vet_providers.dart';
+import 'package:proyecto_felix/ui/features/visits/view_models/visit_providers.dart';
 
 /// Perfil profesional del vet: solicitud de verificación (pendiente o
 /// rechazada) y administración del perfil una vez aprobado.
@@ -76,6 +80,10 @@ class _Body extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _StatusBanner(profile: profile),
+              if (profile.status == VetStatus.approved) ...[
+                const SizedBox(height: 12),
+                const _AgendaCard(),
+              ],
               const SizedBox(height: 12),
               _ProfessionalDataCard(profile: profile),
               const SizedBox(height: 12),
@@ -1068,5 +1076,115 @@ class _Snapshot {
         n(year) == n(o.year) &&
         n(code) == n(o.code) &&
         foreign == o.foreign;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agenda: visitas, punto de partida y días libres (solo vets aprobados)
+// ---------------------------------------------------------------------------
+
+class _AgendaCard extends ConsumerWidget {
+  const new();
+
+  Future<void> _addTimeOff(BuildContext context, WidgetRef ref) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 180)),
+      helpText: 'Días libres',
+    );
+    if (range == null || !context.mounted) return;
+    await runWithFeedback(
+      context,
+      () => ref
+          .read(vetAgendaRepositoryProvider)
+          .addTimeOff(range.start, range.end),
+      onDone: () => ref.invalidate(timeOffProvider),
+      success: 'Días libres guardados',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final visits = ref.watch(myVisitsProvider).value ?? const <Visit>[];
+    final pending = visits
+        .where((v) => v.status == VisitStatus.pendingVet)
+        .length;
+    final base = ref.watch(vetBaseProvider);
+    final timeOff = ref.watch(timeOffProvider).value ?? const <TimeOff>[];
+    return _Section(
+      title: 'Mi agenda',
+      icon: Icons.event_note_outlined,
+      subtitle: 'Solicitudes, punto de partida y días libres.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 8,
+        children: [
+          FilledButton.icon(
+            key: const Key('vet-open-visits'),
+            onPressed: () => context.push(AppRoutes.vetVisits),
+            icon: const Icon(Icons.event_available_outlined),
+            label: Text(
+              pending == 0
+                  ? 'Mis visitas'
+                  : 'Mis visitas ($pending por confirmar)',
+            ),
+          ),
+          if (base case AsyncData(value: null))
+            const InfoBanner(
+              key: Key('vet-base-missing'),
+              tone: BannerTone.warning,
+              message:
+                  'Define tu punto de partida para aparecer en las búsquedas '
+                  'de los dueños.',
+            ),
+          OutlinedButton.icon(
+            key: const Key('vet-open-base'),
+            onPressed: () => context.push(AppRoutes.vetBase),
+            icon: const Icon(Icons.my_location_outlined),
+            label: const Text('Punto de partida'),
+          ),
+          const Divider(height: 24),
+          Text('Días libres', style: Theme.of(context).textTheme.titleSmall),
+          if (timeOff.isEmpty)
+            const Text('Sin días libres registrados.')
+          else
+            for (final t in timeOff)
+              ListTile(
+                key: Key('time-off-${t.id}'),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.beach_access_outlined),
+                title: Text(
+                  t.from == t.to
+                      ? formatDay(t.from)
+                      : '${formatDay(t.from)} – ${formatDay(t.to)}',
+                ),
+                trailing: IconButton(
+                  tooltip: 'Quitar',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => runWithFeedback(
+                    context,
+                    () => ref
+                        .read(vetAgendaRepositoryProvider)
+                        .removeTimeOff(t.id),
+                    onDone: () => ref.invalidate(timeOffProvider),
+                  ),
+                ),
+              ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const Key('add-time-off'),
+              icon: const Icon(Icons.add),
+              label: const Text('Agregar días libres'),
+              onPressed: () => _addTimeOff(context, ref),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
