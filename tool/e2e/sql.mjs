@@ -16,3 +16,17 @@ export function sqlRunner(status) {
     ['exec', '-i', name, 'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-tA', '-c', query])
     .toString().trim();
 }
+
+// El horario de una visita (scheduled_at, slot, confirm_deadline, started_at)
+// solo se mueve desde una sesión directa de postgres con esta marca: la API
+// (PostgREST conecta como authenticator) nunca puede hacerlo.
+export const timeTravel = (sql, query) => sql(`set felix.time_travel = 'on'; ${query}`);
+
+/// Mueve la hora de una visita (slot de 90 min).
+export const shiftVisit = (sql, visitId, expr) => timeTravel(sql,
+  `update public.visits set scheduled_at = ${expr},
+   slot = tstzrange(${expr}, ${expr} + interval '90 minutes') where id = '${visitId}'`);
+
+/// Simula que la atención empezó hace 15 min (duración mínima de 10 min).
+export const backdateStart = (sql, visitId) => timeTravel(sql,
+  `update public.visits set started_at = now() - interval '15 minutes' where id = '${visitId}'`);

@@ -3,7 +3,7 @@
 // Uso: node tool/e2e/precios_e2e.mjs "$(npx --yes supabase@3.2.0 status -o json | sed -n '/^{/,$p')"
 // Crea usuarios y fundaciones ficticias. Al final borra los usuarios (los
 // pagos quedan anonimizados y los aportes se conservan, como en producción).
-import { sqlRunner } from './sql.mjs';
+import { backdateStart, shiftVisit, sqlRunner } from './sql.mjs';
 
 const st = JSON.parse(process.argv[2]);
 const sql = sqlRunner(st);
@@ -172,11 +172,11 @@ try {
   check(early.status === 400, 'no se paga antes de completar la visita');
   const tr = (to) => rpc('transition_visit', { p_visit_id: visitId, p_to_status: to }, vet.token);
   await tr('accepted');
-  // Paso del tiempo (SQL directo): la visita empieza en 1 h.
-  sql(`update public.visits set scheduled_at = date_trunc('minute', now()) + interval '1 hour',
-    slot = tstzrange(date_trunc('minute', now()) + interval '1 hour', date_trunc('minute', now()) + interval '150 minutes')
-    where id = '${visitId}'`);
-  for (const s of ['en_route', 'arrived', 'in_progress', 'completed']) await tr(s);
+  // Paso del tiempo (SQL directo, solo stacks locales): empieza en 20 min.
+  shiftVisit(sql, visitId, "date_trunc('minute', now()) + interval '20 minutes'");
+  for (const s of ['en_route', 'arrived', 'in_progress']) await tr(s);
+  backdateStart(sql, visitId);
+  await tr('completed');
   const fakeAmount = await rpc('simulate_payment', { p_visit_id: visitId, p_total: 1 }, ownerA.token);
   check(fakeAmount.status >= 400, 'simulate_payment no acepta montos');
   const failed = await rpc('simulate_payment', { p_visit_id: visitId, p_simulate_failure: true }, ownerA.token);

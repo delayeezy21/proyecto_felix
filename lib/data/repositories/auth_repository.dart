@@ -161,11 +161,18 @@ const passwordResetMinDuration = Duration(milliseconds: 800);
 /// Otros errores (red, `over_request_rate_limit` por IP) se propagan después
 /// de la misma espera. La mitigación completa es captcha en la nube
 /// (docs/despliegue-beta.md).
+///
+/// [elapsed] y [wait] permiten a los tests usar un reloj falso (sin medir
+/// tiempo real, que en Windows tiene la granularidad del temporizador).
 Future<void> neutralPasswordReset(
   Future<void> Function() send, {
   Duration minDuration = passwordResetMinDuration,
+  Duration Function()? elapsed,
+  Future<void> Function(Duration)? wait,
 }) async {
   final watch = Stopwatch()..start();
+  final spent = elapsed ?? () => watch.elapsed;
+  final sleep = wait ?? Future<void>.delayed;
   Object? error;
   StackTrace? trace;
   try {
@@ -176,8 +183,8 @@ Future<void> neutralPasswordReset(
       trace = st;
     }
   }
-  final left = minDuration - watch.elapsed;
-  if (left > Duration.zero) await Future<void>.delayed(left);
+  final left = minDuration - spent();
+  if (left > Duration.zero) await sleep(left);
   if (error != null) Error.throwWithStackTrace(error, trace!);
 }
 

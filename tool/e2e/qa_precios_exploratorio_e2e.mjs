@@ -10,7 +10,7 @@
 // Solo crea usuarios *@test.local y fundaciones "QA ..." ficticias. Publica una
 // versión de pricing_config con los valores por defecto: correrlo DESPUÉS de
 // `supabase test db`.
-import { sqlRunner } from './sql.mjs';
+import { backdateStart, shiftVisit, sqlRunner } from './sql.mjs';
 
 const st = JSON.parse(process.argv[2]);
 const sql = sqlRunner(st);
@@ -264,8 +264,12 @@ try {
     slotIdx += 4;
     const id = bk.json.id;
     await tr(id, 'accepted', vet.token);
-    sql(`update public.visits set scheduled_at = now() + interval '30 minutes', slot = tstzrange(now() + interval '30 minutes', now() + interval '120 minutes') where id = '${id}'`);
-    for (const s of ['en_route', 'arrived', 'in_progress', 'completed']) await tr(id, s, vet.token);
+    // Fase 6 (QA-F6): el horario solo se mueve con felix.time_travel y
+    // "completada" exige 10 min de atención.
+    shiftVisit(sql, id, "now() + interval '30 minutes'");
+    for (const s of ['en_route', 'arrived', 'in_progress']) await tr(id, s, vet.token);
+    backdateStart(sql, id);
+    await tr(id, 'completed', vet.token);
     return { id, quote: qq, booked: bk.status };
   }
   const v1 = await doneVisit({ p_extra_donation: 500 });
