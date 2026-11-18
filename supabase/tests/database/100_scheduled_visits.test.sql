@@ -136,7 +136,8 @@ select is_empty(
        'private.expire_visits()', 'private.purge_stale_quotes()',
        'private.record_payment(uuid, uuid, uuid, uuid, uuid, text, integer, integer, integer, integer, integer, boolean)',
        'private.charge_cancel_fee(public.visits)', 'private.cancel_fee_for(public.visits, timestamptz)',
-       'private.visit_view(public.visits, uuid)', 'private.visit_edge_allowed(text, text)']) p
+       'private.visit_view(public.visits, uuid)', 'private.visit_edge_allowed(text, text)',
+       'private.consume_quote(uuid, uuid, uuid, uuid, uuid)']) p
      where has_function_privilege('authenticated', p, 'execute') $$,
   'las funciones internas de visitas no las ejecuta la app');
 select is_empty(

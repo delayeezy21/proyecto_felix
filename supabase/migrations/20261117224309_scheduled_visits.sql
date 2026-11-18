@@ -779,7 +779,8 @@ as $$
       'vet_payout', (v.quote ->> 'vet_payout')::integer,
       'pet_name', p.name, 'species_name', sp.name, 'specialty_name', s.name,
       'commune_name', coalesce(ap.commune_name, c.name),
-      'distance_km', coalesce(ap.distance_km_rounded, (v.quote ->> 'distance_km')::numeric),
+      -- R-1: la distancia sale siempre del origen aproximado (quote_origin).
+      'distance_km', coalesce((v.quote ->> 'distance_km')::numeric, ap.distance_km_rounded),
       'paid', exists (select 1 from public.payments pay where pay.visit_id = v.id
                       and pay.kind = 'visit' and pay.status = 'simulated_paid'),
       -- Dirección exacta y contacto: solo asignado y con la visita activa.
@@ -799,7 +800,7 @@ as $$
   left join public.vet_profiles vp on vp.user_id = v.vet_id
   left join public.owner_profiles o on o.user_id = v.owner_id
   left join public.vet_bases b on b.vet_id = v.vet_id
-  left join lateral private.address_approx(v.address_id, b.location) ap
+  left join lateral private.address_approx(v.address_id, b.quote_origin) ap
     on v.vet_id = p_uid and b.vet_id is not null;
 $$;
 revoke execute on function private.visit_view(public.visits, uuid) from public, anon, authenticated;
@@ -841,6 +842,40 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Reserva
 -- ---------------------------------------------------------------------------
+-- O-1 (QA fase 5): consumo de una cotización para crear una visita agendada.
+-- Exige que traiga vet (sin vet saldría sin recargo por distancia) y que
+-- coincida con el vet, la mascota y la dirección de la visita; recién
+-- entonces la bloquea y la marca usada (private.consume_quote de la fase 5).
+create function private.consume_quote(
+  p_quote_id uuid, p_owner uuid, p_vet_id uuid, p_pet_id uuid, p_address_id uuid)
+returns public.quotes
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_q public.quotes;
+begin
+  select * into v_q from public.quotes q where q.id = p_quote_id for update;
+  if not found or v_q.owner_id is distinct from p_owner then
+    raise exception 'La cotización no existe' using errcode = '22023';
+  end if;
+  if v_q.mode <> 'scheduled' or v_q.vet_id is null then
+    raise exception 'La cotización no corresponde a una visita agendada con veterinario'
+      using errcode = '22023';
+  end if;
+  if v_q.vet_id is distinct from p_vet_id or v_q.pet_id is distinct from p_pet_id
+     or v_q.address_id is distinct from p_address_id then
+    raise exception 'La cotización no coincide con el veterinario, la mascota o la dirección elegidos'
+      using errcode = '22023';
+  end if;
+  return private.consume_quote(p_quote_id, p_owner);
+end;
+$$;
+revoke execute on function private.consume_quote(uuid, uuid, uuid, uuid, uuid)
+  from public, anon, authenticated;
+
 create function private.book_visit(
   p_quote_id uuid, p_vet_id uuid, p_pet_id uuid, p_address_id uuid,
   p_scheduled_at timestamptz, p_notes text)
@@ -868,19 +903,6 @@ begin
   if not found then
     raise exception 'La cotización no existe' using errcode = '22023';
   end if;
-  -- O-1 (QA fase 5): la cotización agendada debe traer vet (si no, saldría
-  -- sin recargo por distancia) y coincidir con el vet, la mascota y la
-  -- dirección que el dueño eligió. Se valida antes de consumirla.
-  if v_q.mode <> 'scheduled' or v_q.vet_id is null then
-    raise exception 'La cotización no corresponde a una visita agendada con veterinario'
-      using errcode = '22023';
-  end if;
-  if v_q.vet_id is distinct from p_vet_id or v_q.pet_id is distinct from p_pet_id
-     or v_q.address_id is distinct from p_address_id then
-    raise exception 'La cotización no coincide con el veterinario, la mascota o la dirección elegidos'
-      using errcode = '22023';
-  end if;
-
   -- Tope anti abuso: visitas abiertas por dueño (serializado).
   perform pg_advisory_xact_lock(hashtextextended('visits:' || v_uid::text, 0));
   if (select count(*) from public.visits x
@@ -890,7 +912,8 @@ begin
     raise exception 'Tienes demasiadas visitas abiertas' using errcode = '22023';
   end if;
 
-  v_q := private.consume_quote(p_quote_id, v_uid);
+  -- O-1: exige vet y compara vet, mascota y dirección al consumir.
+  v_q := private.consume_quote(p_quote_id, v_uid, p_vet_id, p_pet_id, p_address_id);
 
   if not exists (select 1 from public.pets p
                  where p.id = v_q.pet_id and p.owner_id = v_uid and p.active) then
