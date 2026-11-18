@@ -177,6 +177,10 @@ try {
     `la respuesta de quote_visit solo trae distance_km redondeada (${ok.json.distance_km})`);
   const raw = await rest(`quotes?select=distance_m&id=eq.${ok.json.quote_id}`, { token: a.token });
   known(!(raw.json[0]?.distance_m > 0), 'QA-F5-01', `el dueño NO lee la distancia exacta en metros desde /quotes (obtiene ${raw.json[0]?.distance_m} m)`);
+  const rawAdm = await rest(`quotes?select=distance_m&id=eq.${ok.json.quote_id}`, { token: admin.token });
+  const rawStar = await rest(`quotes?select=*&id=eq.${ok.json.quote_id}`, { token: a.token });
+  check(raw.status >= 400 && rawAdm.status >= 400 && rawStar.status >= 400,
+    `distance_m no es legible ni por el dueño, ni por el admin, ni con select=* (HTTP ${raw.status}/${rawAdm.status}/${rawStar.status})`);
   // Trilateración con 3 direcciones propias, usando lo único que el dueño
   // recibe: distance_km (al km, desde el origen aproximado del vet).
   const pts = [[-33.4569, -70.5974], [-33.3800, -70.5000], [-33.4300, -70.5000]];
@@ -200,7 +204,32 @@ try {
   const leak = best ? hav(best.cand, SECRET) : Infinity;
   // Lo trilaterable es el origen aproximado (1–2 km de la base real): el
   // error mínimo garantizado es 1 km menos el error de redondeo del ajuste.
-  known(leak > 500, 'QA-F5-01', `con 3 cotizaciones el dueño NO ubica la base del vet (error de trilateración ${Math.round(leak)} m)`);
+  // QA 26ac1c3: el ajuste con distancias al km tiene ruido propio, así que un
+  // umbral sobre ese resultado es aleatorio. Se informa y se verifica la
+  // garantía fuerte: aun conociendo EXACTAMENTE el origen aproximado (el mejor
+  // atacante posible, simulado con la clave de servicio), la base real queda a
+  // 1–2 km.
+  console.log(`INFO    trilateración con distance_km: ${Math.round(leak)} m de la base real`);
+  const origin = async (id) => {
+    const r = (await rest(`vet_bases?select=lat,lng,fuzz_dlat,fuzz_dlng&vet_id=eq.${id}`, srv)).json[0];
+    return { base: [r.lat, r.lng], orig: [r.lat + r.fuzz_dlat, r.lng + r.fuzz_dlng], fuzz: [r.fuzz_dlat, r.fuzz_dlng] };
+  };
+  const o1 = await origin(vet.id);
+  const gap = hav(o1.orig, SECRET);
+  check(gap >= 990 && gap <= 2010, `el origen exacto de cotización queda a ${Math.round(gap)} m de la base real (anillo 1–2 km)`);
+  // Sin re-sorteo: el vet no borra ni recrea su base, ni toca el desplazamiento.
+  const vDel = await rest(`vet_bases?vet_id=eq.${vet.id}`, { method: 'DELETE', token: vet.token });
+  check(vDel.status === 403, `el vet no borra su base para sortear otro desplazamiento (HTTP ${vDel.status})`);
+  const vFuzz = await rest(`vet_bases?vet_id=eq.${vet.id}`, { method: 'PATCH', token: vet.token, body: { fuzz_dlng: 0 } });
+  check(vFuzz.status === 403, `el vet no modifica fuzz_dlng (HTTP ${vFuzz.status})`);
+  const vOrig = await rest(`vet_bases?vet_id=eq.${vet.id}`, { method: 'PATCH', token: vet.token, body: { quote_origin: 'SRID=4326;POINT(-70.6 -33.4)' } });
+  check(vOrig.status >= 400, `el vet no escribe quote_origin (HTTP ${vOrig.status})`);
+  const vMove = await rest(`vet_bases?vet_id=eq.${vet.id}`, { method: 'PATCH', token: vet.token, body: { lat: SECRET[0] + 0.001 } });
+  const o2 = await origin(vet.id);
+  check(vMove.status < 300 && o2.fuzz[0] === o1.fuzz[0] && o2.fuzz[1] === o1.fuzz[1], 'mover la base no re-sortea el desplazamiento (no se puede promediar)');
+  await rest(`vet_bases?vet_id=eq.${vet.id}`, { method: 'PATCH', token: vet.token, body: { lat: SECRET[0] } });
+  const ownView = await rest('vet_bases?select=quote_origin,fuzz_dlat', { token: vet.token });
+  check(ownView.json.length === 1, 'el propio vet ve su desplazamiento (dato suyo; nadie más lo ve)');
 
   // Base del vet sin validación geográfica (fuera de Chile / comuna incoherente).
   const mendoza = await rest('vet_bases', { method: 'POST', token: vetFar.token, body: { vet_id: vetFar.id, commune_id: nunoa, lat: -32.889, lng: -68.845 } });
