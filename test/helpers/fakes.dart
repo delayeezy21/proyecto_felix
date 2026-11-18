@@ -21,10 +21,12 @@ import 'package:proyecto_felix/domain/models/geo.dart';
 import 'package:proyecto_felix/domain/models/pet.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
 
+import 'clinical_fakes.dart';
 import 'owner_fakes.dart';
 import 'pricing_fakes.dart';
 import 'visit_fakes.dart';
 
+export 'clinical_fakes.dart';
 export 'owner_fakes.dart';
 export 'pricing_fakes.dart';
 export 'visit_fakes.dart';
@@ -222,6 +224,7 @@ Widget testApp({
   FakeVisitRepository? visits,
   FakeVetAgendaRepository? agenda,
   FakeRecoveryFlagStore? recoveryStore,
+  FakeClinicalRepository? clinical,
   Env env = configuredEnv,
 }) => ProviderScope(
   overrides: [
@@ -249,6 +252,9 @@ Widget testApp({
     visitRepositoryProvider.overrideWithValue(visits ?? FakeVisitRepository()),
     vetAgendaRepositoryProvider.overrideWithValue(
       agenda ?? FakeVetAgendaRepository(),
+    ),
+    clinicalRepositoryProvider.overrideWithValue(
+      clinical ?? FakeClinicalRepository(),
     ),
     recoveryFlagStoreProvider.overrideWithValue(
       recoveryStore ?? FakeRecoveryFlagStore(),

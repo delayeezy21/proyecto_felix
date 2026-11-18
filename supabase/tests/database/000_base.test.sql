@@ -55,7 +55,9 @@ select is_empty(
                               'create_quote', 'pay_visit_simulated',
                               'foundation_monthly_totals', 'find_available_vets',
                               'transition_visit', 'list_my_visits', 'book_visit',
-                              'visit_status_summary') $$,
+                              'visit_status_summary', 'vet_can_write',
+                              'entry_writable', 'can_upload_clinical', 'get_pet_record',
+                              'authorize_attachment', 'pet_access_log', 'record_stats') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 

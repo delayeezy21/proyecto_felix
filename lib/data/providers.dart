@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
+import 'package:proyecto_felix/data/repositories/clinical_repository.dart';
 import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
 import 'package:proyecto_felix/data/repositories/pricing_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
@@ -61,6 +62,10 @@ final sessionProvider = StreamProvider<SessionSnapshot>((ref) {
 
 final visitRepositoryProvider = Provider<VisitRepository>(
   (ref) => SupabaseVisitRepository(ref.watch(supabaseClientProvider)),
+);
+
+final clinicalRepositoryProvider = Provider<ClinicalRepository>(
+  (ref) => SupabaseClinicalRepository(ref.watch(supabaseClientProvider)),
 );
 
 final vetAgendaRepositoryProvider = Provider<VetAgendaRepository>(
