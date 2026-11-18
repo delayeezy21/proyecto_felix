@@ -374,8 +374,14 @@ select id, public.current_legal_version('privacy') from auth.users where email =
 ```
 
 3. Activa **MFA** en tu cuenta de Supabase (Account → Security) y en GitHub.
+4. **Fundación por defecto (obligatoria).** `seed.sql` no va a la nube y, sin una fundación activa marcada por defecto, `quote_visit` falla con "No hay una fundación por defecto configurada". Con el admin, en la web: pestaña **Fundaciones** → crea la fundación aliada real (con su acuerdo firmado) → **Marcar por defecto**. O en el SQL Editor:
 
-**Listo cuando:** inicias sesión en la web y ves el panel de admin.
+```sql
+insert into public.foundations (name, description, is_default)
+values ('<NOMBRE DE LA FUNDACIÓN ALIADA>', '<descripción breve>', true);
+```
+
+**Listo cuando:** inicias sesión en la web, ves el panel de admin y la pestaña Fundaciones muestra una fundación activa por defecto.
 
 ---
 
