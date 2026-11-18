@@ -209,6 +209,13 @@ select throws_ok($$ select pg_temp.tr(pg_temp.id('a'), 'completed') $$,
 reset role;
 select ok((select started_at = now() from public.visits where id = pg_temp.id('a')),
   'visits.started_at registra el inicio');
+-- Se completa para liberar el horario del vet.
+select pg_temp.tt(format('update public.visits set started_at = now() - interval ''15 minutes'' where id = %L',
+  pg_temp.id('a')));
+select pg_temp.login('00000000-0000-0000-0000-00000000a6b1');
+set local role authenticated;
+select pg_temp.tr(pg_temp.id('a'), 'completed');
+reset role;
 
 -- QA-F6-03: "en camino" que nunca llega -------------------------------------------
 select pg_temp.accepted_visit('b', date_trunc('hour', now()) + interval '1 day' + interval '3 hours');
@@ -235,7 +242,7 @@ select is((select count(*)::int from public.payments where visit_id = pg_temp.id
 select pg_temp.accepted_visit('c', date_trunc('hour', now()) + interval '1 day' + interval '6 hours');
 select pg_temp.shift(pg_temp.id('c'), date_trunc('minute', now()) + interval '10 minutes');
 select pg_temp.accepted_visit('d', date_trunc('hour', now()) + interval '1 day' + interval '9 hours');
-select pg_temp.shift(pg_temp.id('d'), date_trunc('minute', now()) + interval '1 hour');
+select pg_temp.shift(pg_temp.id('d'), date_trunc('minute', now()) + interval '105 minutes');
 select pg_temp.login('00000000-0000-0000-0000-00000000a6b1');
 set local role authenticated;
 select pg_temp.tr(pg_temp.id('c'), 'en_route');
@@ -243,10 +250,11 @@ select pg_temp.tr(pg_temp.id('c'), 'arrived');
 select pg_temp.tr(pg_temp.id('d'), 'en_route');
 reset role;
 select pg_temp.shift(pg_temp.id('c'), date_trunc('minute', now()) - interval '121 minutes');
-select pg_temp.shift(pg_temp.id('d'), date_trunc('minute', now()) - interval '119 minutes');
 select private.expire_visits();
 select is((select concat_ws(',', status, cancel_fee) from public.visits where id = pg_temp.id('c')),
   'cancelled_vet,0', 'QA-F6-03: "llegó" sin iniciar 2 h después se cierra sin cargo');
+select pg_temp.shift(pg_temp.id('d'), date_trunc('minute', now()) - interval '119 minutes');
+select private.expire_visits();
 select is((select status from public.visits where id = pg_temp.id('d')), 'en_route',
   'antes de las 2 h no se cierra');
 select pg_temp.shift(pg_temp.id('d'), date_trunc('minute', now()) - interval '3 hours');
