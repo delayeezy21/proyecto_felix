@@ -10,6 +10,7 @@
 // docs/qa/; pasa a OK solo cuando se corrige). Correr DESPUÉS de
 // `supabase test db`: publica versiones de pricing_config.
 // Solo crea usuarios *@test.local y los borra al final.
+import { execFileSync } from 'node:child_process';
 import { backdateStart, shiftVisit, sqlRunner, timeTravel } from './sql.mjs';
 
 const st = JSON.parse(process.argv[2]);
@@ -17,6 +18,12 @@ const API = st.API_URL;
 const PUB = st.PUBLISHABLE_KEY;
 const SRV = st.SERVICE_ROLE_KEY;
 const sql = sqlRunner(st);
+// Superusuario local (solo QA): permite SET SESSION AUTHORIZATION para imitar a PostgREST.
+const DOCKER = process.env.DOCKER_BIN || (process.platform === 'win32' ? 'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe' : 'docker');
+const dbName = execFileSync(DOCKER, ['ps', '--filter', `publish=${new URL(st.DB_URL).port}`, '--format', '{{.Names}}'])
+  .toString().trim().split(/\r?\n/)[0];
+const asSuper = (q) => execFileSync(DOCKER, ['exec', '-i', dbName, 'psql', '-U', 'supabase_admin', '-d', 'postgres',
+  '-v', 'ON_ERROR_STOP=1', '-tA', '-c', q]).toString().trim();
 
 let fails = 0;
 let defects = 0;
@@ -334,6 +341,57 @@ try {
   const pw = (await rest('payments?select=vet_id', { token: W.token })).json;
   check(pv.length >= 2 && pv.every((p) => p.vet_id === V.id) && pw.every((p) => p.vet_id === W.id), `el vet ve solo sus pagos (V ${pv.length}, W ${pw.length})`);
   check((await rest('payments?select=id', { token: fund.token })).json.length === 0, 'la fundación no ve pagos');
+
+  // ==== 4b. QA 680e21c: horarios de llegada/inicio/cierre y cierres automáticos ======
+  await tr(k5, 'cancelled_vet', V.token, 'Libera el horario para las pruebas siguientes');
+  const k6 = await newVisit(a); await tr(k6, 'accepted', V.token); shift(k6, "now() + interval '40 minutes'");
+  const k6r = [(await tr(k6, 'en_route', V.token)).status, (await tr(k6, 'arrived', V.token)).status];
+  check(k6r[0] === 200 && k6r[1] === 400, `a 40 min de la hora: "en camino" sí, "llegó" no (${k6r.join(',')})`);
+  shift(k6, "now() + interval '20 minutes'");
+  const k6s = [(await tr(k6, 'arrived', V.token)).status, (await tr(k6, 'in_progress', V.token)).status, (await tr(k6, 'completed', V.token)).status];
+  check(k6s[0] === 200 && k6s[1] === 200 && k6s[2] === 400, `a 20 min: llegar e iniciar sí; completar al instante no (${k6s.join(',')})`);
+  backdateStart(sql, k6);
+  check((await tr(k6, 'completed', V.token)).status === 200, 'tras 10 min de atención se completa');
+  // El cargo sigue aplicando con el vet en camino ANTES de atrasarse.
+  const k7 = await newVisit(a); await tr(k7, 'accepted', V.token); shift(k7, "now() + interval '110 minutes'");
+  await tr(k7, 'en_route', V.token); shift(k7, "now() + interval '10 minutes'");
+  check((await tr(k7, 'cancelled_owner', a.token)).json?.cancel_fee === 5000, 'en camino y a tiempo: cancelar cobra $5.000');
+  // "Llegó" que nunca inicia: cierre automático sin cargo.
+  const k8 = await newVisit(a); await tr(k8, 'accepted', V.token); shift(k8, "now() + interval '20 minutes'");
+  await tr(k8, 'en_route', V.token); await tr(k8, 'arrived', V.token);
+  timeTravel(sql, `update public.visits set scheduled_at = now() - interval '3 hours', slot = tstzrange(now() - interval '3 hours', now() - interval '90 minutes') where id = '${k8}'; select private.expire_visits();`);
+  const k8o = await mv(k8, a.token);
+  check(k8o.status === 'cancelled_vet' && k8o.cancel_fee === 0, `"llegó" sin iniciar 3 h después → cancelled_vet sin cargo (${k8o.status})`);
+  // "En curso" que nunca se completa.
+  const k9 = await newVisit(a); await tr(k9, 'accepted', V.token); shift(k9, "now() + interval '20 minutes'");
+  for (const s of ['en_route', 'arrived', 'in_progress']) await tr(k9, s, V.token);
+  timeTravel(sql, `update public.visits set scheduled_at = now() - interval '2 days', slot = tstzrange(now() - interval '2 days', now() - interval '2 days' + interval '90 minutes') where id = '${k9}'; select private.expire_visits();`);
+  const k9v = await mv(k9, V.token);
+  known(k9v.status !== 'in_progress' || !k9v.exact, 'QA-F6-06',
+    `una visita "en curso" 2 días después de su hora no deja al vet con la dirección y el teléfono del dueño (estado ${k9v.status}, exacta ${k9v.exact ? 'sí' : 'no'})`);
+  // Viaje en el tiempo: solo una sesión directa de postgres.
+  check((await rpc('set_config', { setting_name: 'felix.time_travel', new_value: 'on', is_local: true }, a.token)).status === 404, 'set_config no está expuesto en la API');
+  const srvSched = await rest(`visits?id=eq.${k9}`, { method: 'PATCH', ...srv, body: { scheduled_at: new Date().toISOString() } });
+  const srvStatus = await rest(`visits?id=eq.${k9}`, { method: 'PATCH', ...srv, body: { status: 'completed' } });
+  check(srvSched.status >= 400 && srvStatus.status >= 400, `ni la clave de servicio cambia horario ni estado por REST (HTTP ${srvSched.status}/${srvStatus.status})`);
+  let ttBlocked = false;
+  try {
+    asSuper(`set session authorization authenticator; set role service_role; set felix.time_travel = 'on'; set felix.visit_transition = 'on';
+      update public.visits set scheduled_at = now() where id = '${k9}'`);
+  } catch (e) { ttBlocked = /horario/.test(String(e.stderr ?? e)); }
+  check(ttBlocked, 'con session_user authenticator (como PostgREST), fijar felix.time_travel no habilita mover el horario');
+  let trBlocked = false;
+  try {
+    asSuper(`set session authorization authenticator; set role service_role; set felix.visit_transition = 'on';
+      update public.visits set status = 'completed' where id = '${k9}'`);
+  } catch (e) { trBlocked = true; }
+  console.log(`INFO    service_role con felix.visit_transition fijado a mano ${trBlocked ? 'NO' : 'SÍ'} puede saltarse transition_visit (solo backend con clave secreta)`);
+
+  // QA 680e21c: preselección KNN. 30 vets cercanos con día libre y 1 libre a ~15 km
+  // (transacción con ROLLBACK, datos sintéticos).
+  const knnOut = sql("begin;\nset local session_replication_role = replica;\ncreate temp table vv as select gen_random_uuid() id, g from generate_series(1,31) g;\ncreate temp table oo as select gen_random_uuid() id;\ninsert into auth.users (id, email, aud, role, instance_id) select id, 'kv'||g||'@x.test','authenticated','authenticated','00000000-0000-0000-0000-000000000000'::uuid from vv union all select id, 'ko@x.test','authenticated','authenticated','00000000-0000-0000-0000-000000000000'::uuid from oo;\ninsert into public.user_roles (user_id, role) select id, 'vet' from vv; insert into public.user_roles (user_id, role) select id, 'owner' from oo;\ninsert into public.vet_profiles (user_id, display_name, status) select id, 'Vet KNN '||g, 'approved' from vv;\ninsert into public.owner_profiles (user_id, display_name, commune_id) select id, 'Dueño KNN', (select id from public.communes where name='Ñuñoa') from oo;\ninsert into public.vet_species (vet_id, species_id) select id, (select id from public.species where slug='perro') from vv;\ninsert into public.vet_specialties (vet_id, specialty_id) select id, (select id from public.specialties where slug='general') from vv;\ninsert into public.vet_availability (vet_id, weekday, start_min, end_min) select id, d, 480, 1200 from vv, generate_series(1,7) d;\n-- 30 vets a ~1–3 km (con día libre mañana) y 1 vet a ~15 km libre.\ninsert into public.vet_bases (vet_id, commune_id, lat, lng, fuzz_dlat, fuzz_dlng)\n  select id, (select id from public.communes where name='Ñuñoa'), -33.4569 + 0.001*g, -70.5974, 0, 0 from vv where g <= 30\n  union all select id, (select id from public.communes where name='Ñuñoa'), -33.32, -70.5974, 0, 0 from vv where g = 31;\ninsert into public.vet_time_off (vet_id, period) select id, tstzrange(now(), now() + interval '3 days') from vv where g <= 30;\ninsert into public.pets (owner_id, name, species_id) select id, 'Mascota', (select id from public.species where slug='perro') from oo;\ninsert into public.addresses (owner_id, label, street_text, commune_id, lat, lng) select id, 'Casa', 'Calle QA 1', (select id from public.communes where name='Ñuñoa'), -33.4569, -70.5974 from oo;\nset local session_replication_role = origin;\ngrant select on vv, oo to authenticated;\nselect set_config('request.jwt.claims', json_build_object('sub', (select id from oo), 'role','authenticated')::text, true);\nset local role authenticated;\nselect 'KNN=' || count(*) from public.available_vets((select p.id from public.pets p where p.owner_id=(select auth.uid())), (select a.id from public.addresses a where a.owner_id=(select auth.uid())), (select id from public.specialties where slug='general'), ((now() at time zone 'America/Santiago')::date + 1)) x;\nreset role;\nrollback;\n");
+  const knn = Number((knnOut.match(/KNN=([0-9]+)/) ?? [])[1]);
+  known(knn === 1, 'QA-F6-07', `con los 30 vets más cercanos de día libre, aparece el vet libre a ~15 km (ofrecidos: ${knn})`);
 
   // ==== 5. Cron ====================================================================
   const j = sql("select count(*) filter (where status = 'succeeded') || '/' || count(*) from cron.job_run_details d join cron.job j using (jobid) where j.jobname = 'expire-visits'");
