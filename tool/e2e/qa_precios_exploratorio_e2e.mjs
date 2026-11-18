@@ -10,7 +10,10 @@
 // Solo crea usuarios *@test.local y fundaciones "QA ..." ficticias. Publica una
 // versión de pricing_config con los valores por defecto: correrlo DESPUÉS de
 // `supabase test db`.
+import { sqlRunner } from './sql.mjs';
+
 const st = JSON.parse(process.argv[2]);
+const sql = sqlRunner(st);
 const API = st.API_URL;
 const PUB = st.PUBLISHABLE_KEY;
 const SRV = st.SERVICE_ROLE_KEY;
@@ -245,49 +248,74 @@ try {
   check(ownerBase.status >= 400, `un dueño no crea vet_bases (HTTP ${ownerBase.status})`);
 
   // ---- 4. Pagos: escritura directa y RPC --------------------------------------------------
-  const qp = (await q(a, { p_extra_donation: 500 })).json;
+  // Desde la fase 6 se paga una VISITA completada (simulate_payment(p_visit_id)),
+  // no una cotización suelta. La hora de la visita se adelanta por SQL (QA).
+  await rest('vet_availability', { method: 'POST', ...srv, body: [1, 2, 3, 4, 5, 6, 7].map((d) => ({ vet_id: vet.id, weekday: d, start_min: 0, end_min: 1440 })) });
+  const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+  const slots = ((await rpc('available_vets', { p_pet_id: petA, p_address_id: addrA, p_specialty_id: general, p_date: tomorrow }, a.token)).json ?? [])
+    .find((v) => v.vet_id === vet.id)?.slots ?? [];
+  check(slots.length >= 10, `el vet ofrece horarios mañana (${slots.length})`);
+  let slotIdx = 0;
+  const tr = (id, to, tok) => rpc('transition_visit', { p_visit_id: id, p_to_status: to }, tok);
+  async function doneVisit(extra = {}) {
+    const qq = (await q(a, extra)).json;
+    const bk = await rpc('book_visit', { p_quote_id: qq.quote_id, p_vet_id: vet.id, p_pet_id: petA, p_address_id: addrA,
+      p_scheduled_at: slots[slotIdx], p_notes: null }, a.token);
+    slotIdx += 4;
+    const id = bk.json.id;
+    await tr(id, 'accepted', vet.token);
+    sql(`update public.visits set scheduled_at = now() + interval '30 minutes', slot = tstzrange(now() + interval '30 minutes', now() + interval '120 minutes') where id = '${id}'`);
+    for (const s of ['en_route', 'arrived', 'in_progress', 'completed']) await tr(id, s, vet.token);
+    return { id, quote: qq, booked: bk.status };
+  }
+  const v1 = await doneVisit({ p_extra_donation: 500 });
+  const st1 = (await rest(`visits?select=status&id=eq.${v1.id}`, { token: a.token })).json[0]?.status;
+  check(v1.booked === 200 && st1 === 'completed', `visita reservada y completada (book ${v1.booked}, estado ${st1})`);
   const writes = [
-    ['INSERT payments', rest('payments', { method: 'POST', token: a.token, body: { owner_id: a.id, quote_id: qp.quote_id, foundation_id: fX, kind: 'visit', service_price: 1, platform_fee: 0, foundation_share: 0, vet_payout: 1, extra_donation: 0, total: 1 } })],
+    ['INSERT payments', rest('payments', { method: 'POST', token: a.token, body: { owner_id: a.id, visit_id: v1.id, foundation_id: fX, kind: 'visit', service_price: 1, platform_fee: 0, foundation_share: 0, vet_payout: 1, extra_donation: 0, total: 1 } })],
     ['INSERT payment_events', rest('payment_events', { method: 'POST', token: a.token, body: { payment_id: '00000000-0000-4000-8000-000000000000', to_status: 'simulated_paid' } })],
     ['INSERT foundation_contributions (admin)', rest('foundation_contributions', { method: 'POST', token: admin.token, body: { payment_id: '00000000-0000-4000-8000-000000000000', foundation_id: fX, kind: 'donation', amount: 1 } })],
-    ['PATCH quotes.consumed_at', rest(`quotes?id=eq.${qp.quote_id}`, { method: 'PATCH', token: a.token, body: { consumed_at: new Date().toISOString() } })],
-    ['PATCH quotes.total (admin)', rest(`quotes?id=eq.${qp.quote_id}`, { method: 'PATCH', token: admin.token, body: { total: 1 } })],
-    ['DELETE quotes', rest(`quotes?id=eq.${qp.quote_id}`, { method: 'DELETE', token: a.token })],
+    ['PATCH quotes.consumed_at', rest(`quotes?id=eq.${v1.quote.quote_id}`, { method: 'PATCH', token: a.token, body: { consumed_at: null } })],
+    ['PATCH quotes.total (admin)', rest(`quotes?id=eq.${v1.quote.quote_id}`, { method: 'PATCH', token: admin.token, body: { total: 1 } })],
+    ['DELETE quotes', rest(`quotes?id=eq.${v1.quote.quote_id}`, { method: 'DELETE', token: a.token })],
   ];
   for (const [msg, p] of writes) { const r = await p; check(r.status === 403, `${msg} rechazado (HTTP ${r.status})`); }
+  const oldContract = await rpc('simulate_payment', { p_quote_id: v1.quote.quote_id }, a.token);
+  check(oldContract.status === 404, `ya no se paga una cotización suelta (contrato de la fase 5 retirado, HTTP ${oldContract.status})`);
 
-  // Fallo no consume; máximo 5 fallos; luego el pago real funciona.
+  // Máximo 5 fallos; los fallos no marcan la visita como pagada.
   const fails5 = [];
-  for (let i = 0; i < 6; i++) fails5.push((await rpc('simulate_payment', { p_quote_id: qp.quote_id, p_simulate_failure: true }, a.token)).status);
+  for (let i = 0; i < 6; i++) fails5.push((await rpc('simulate_payment', { p_visit_id: v1.id, p_simulate_failure: true }, a.token)).status);
   check(fails5.slice(0, 5).every((s) => s === 200) && fails5[5] === 400, `5 fallos aceptados y el 6.º rechazado (${fails5.join(',')})`);
-  const qpRow = (await rest(`quotes?select=consumed_at&id=eq.${qp.quote_id}`, { token: a.token })).json[0];
-  check(qpRow.consumed_at === null, 'los fallos no consumen la cotización');
+  const paidFlag = ((await rpc('my_visits', {}, a.token)).json ?? []).find((v) => v.id === v1.id)?.paid;
+  check(paidFlag === false, 'los fallos no dejan la visita pagada');
 
-  // Doble pago concurrente: 10 pagos en paralelo de la misma cotización.
-  const race = await Promise.all(Array.from({ length: 10 }, () => rpc('simulate_payment', { p_quote_id: qp.quote_id }, a.token)));
+  // Doble pago concurrente sobre otra visita (la v1 agotó sus 5 intentos).
+  const v1b = await doneVisit({ p_extra_donation: 500 });
+  const race = await Promise.all(Array.from({ length: 10 }, () => rpc('simulate_payment', { p_visit_id: v1b.id }, a.token)));
   const paid = race.filter((r) => r.status === 200 && r.json.status === 'simulated_paid').length;
-  const paidRows = (await rest(`payments?select=id,status&quote_id=eq.${qp.quote_id}&status=eq.simulated_paid`, { token: a.token })).json.length;
+  const paidRows = (await rest(`payments?select=id,status&visit_id=eq.${v1b.id}&status=eq.simulated_paid`, { token: a.token })).json.length;
   const contrib = (await rest(`foundation_contributions?select=kind,amount&payment_id=in.(${race.filter((r) => r.status === 200).map((r) => r.json.payment_id).join(',') || '00000000-0000-4000-8000-000000000000'})`, { token: admin.token })).json;
   check(paid === 1 && paidRows === 1, `10 pagos paralelos: ${paid} pagado(s), ${paidRows} fila(s) simulated_paid`);
   check(contrib.length === 2 && contrib.some((x) => x.kind === 'donation' && x.amount === 500),
     `aportes generados una sola vez (${contrib.map((x) => `${x.kind}:${x.amount}`).join(', ')})`);
-  const afterPaidFail = await rpc('simulate_payment', { p_quote_id: qp.quote_id, p_simulate_failure: true }, a.token);
-  check(afterPaidFail.status === 400, `fallo simulado sobre una cotización pagada se rechaza (HTTP ${afterPaidFail.status})`);
+  const paidPay = race.find((r) => r.status === 200)?.json ?? {};
+  check(paidPay.total === v1b.quote.total && paidPay.vet_payout === v1b.quote.vet_payout, 'el pago usa el precio congelado de la cotización');
+  const afterPaidFail = await rpc('simulate_payment', { p_visit_id: v1b.id, p_simulate_failure: true }, a.token);
+  check(afterPaidFail.status === 400, `fallo simulado sobre una visita pagada se rechaza (HTTP ${afterPaidFail.status})`);
   // Carrera fallo + pago.
-  const q2 = (await q(a)).json;
-  const mix = await Promise.all([true, false, true, false, true].map((f) => rpc('simulate_payment', { p_quote_id: q2.quote_id, p_simulate_failure: f }, a.token)));
-  const mixPaid = (await rest(`payments?select=status&quote_id=eq.${q2.quote_id}`, { token: a.token })).json;
+  const v2 = await doneVisit();
+  const mix = await Promise.all([true, false, true, false, true].map((f) => rpc('simulate_payment', { p_visit_id: v2.id, p_simulate_failure: f }, a.token)));
+  const mixPaid = (await rest(`payments?select=status&visit_id=eq.${v2.id}`, { token: a.token })).json;
   check(mixPaid.filter((p) => p.status === 'simulated_paid').length === 1, `carrera fallo/pago: 1 pagado de ${mixPaid.length} intentos (${mix.map((r) => r.status).join(',')})`);
   // Ajena y por otros roles.
-  const q3 = (await q(a)).json;
-  check((await rpc('simulate_payment', { p_quote_id: q3.quote_id }, b.token)).status === 400, 'B no paga una cotización de A');
-  check((await rpc('simulate_payment', { p_quote_id: q3.quote_id }, vet.token)).status >= 400, 'un vet no paga');
-  check((await rpc('simulate_payment', { p_quote_id: q3.quote_id }, admin.token)).status >= 400, 'el admin no paga por el dueño');
-  check((await rpc('simulate_payment', { p_quote_id: q3.quote_id, p_total: 1 }, a.token)).status >= 400, 'simulate_payment no acepta montos');
+  const v3 = await doneVisit();
+  check((await rpc('simulate_payment', { p_visit_id: v3.id }, b.token)).status === 400, 'B no paga una visita de A');
+  check((await rpc('simulate_payment', { p_visit_id: v3.id }, vet.token)).status >= 400, 'un vet no paga');
+  check((await rpc('simulate_payment', { p_visit_id: v3.id }, admin.token)).status >= 400, 'el admin no paga por el dueño');
+  check((await rpc('simulate_payment', { p_visit_id: v3.id, p_total: 1 }, a.token)).status >= 400, 'simulate_payment no acepta montos');
   const pe = await rest(`payment_events?select=id`, { token: a.token });
   check(pe.json.length === 0, 'el dueño no lee payment_events');
-
-  // Cotización vencida (se fuerza vía SQL en el script de QA aparte) → ver informe.
 
   // ---- 5. Tope de 60 cotizaciones por hora (concurrente) ----------------------------------
   const petC = await mkPet(c);
@@ -299,8 +327,9 @@ try {
   check(okQ === 60 && nC === 60, `70 cotizaciones paralelas: ${okQ} aceptadas, ${nC} guardadas (tope 60/h)`);
 
   // ---- 6. Fundaciones -------------------------------------------------------------------------
-  const qX = (await q(a, { p_foundation_id: fX, p_extra_donation: 700 })).json;
-  const payX = await rpc('simulate_payment', { p_quote_id: qX.quote_id }, a.token);
+  const vX = await doneVisit({ p_foundation_id: fX, p_extra_donation: 700 });
+  const qX = vX.quote;
+  const payX = await rpc('simulate_payment', { p_visit_id: vX.id }, a.token);
   const sumX = await rpc('foundation_summary', {}, fx.token);
   const sumY = await rpc('foundation_summary', {}, fy.token);
   const mX = sumX.json[0] ?? {};
