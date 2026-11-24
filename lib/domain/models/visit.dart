@@ -160,6 +160,7 @@ class Visit {
     this.distanceKm,
     this.exact,
     this.petId,
+    this.addressId,
     this.vetId,
     this.closedBySystem = false,
     this.recordAccess = false,
@@ -199,6 +200,7 @@ class Visit {
           ? VisitExactAddress.fromJson(exact)
           : null,
       petId: j['pet_id'] as String?,
+      addressId: j['address_id'] as String?,
       vetId: j['vet_id'] as String?,
       closedBySystem: j['closed_by_system'] as bool? ?? false,
       recordAccess: j['record_access'] as bool? ?? false,
@@ -240,6 +242,9 @@ class Visit {
   final VisitExactAddress? exact;
 
   final String? petId;
+
+  /// Dirección de la visita (solo en la vista del dueño).
+  final String? addressId;
 
   /// Vet asignado (solo en la vista del dueño; dato público).
   final String? vetId;

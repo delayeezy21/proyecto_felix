@@ -163,16 +163,11 @@ class NoVetFoundView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final addresses = ref.watch(myAddressesProvider).value ?? const [];
-    // La vista del dueño trae la etiqueta y la calle, no el id.
-    final addressId = addresses
-        .where(
-          (a) =>
-              a.active &&
-              a.label == visit.addressLabel &&
-              a.streetText == visit.addressText,
-        )
-        .map((a) => a.id)
-        .firstOrNull;
+    // QA-F8-04: la dirección de la urgencia por su id (no por etiqueta y
+    // calle, que pueden repetirse), solo si sigue activa.
+    final addressId = addresses.any((a) => a.active && a.id == visit.addressId)
+        ? visit.addressId
+        : null;
     return FormPage(
       title: 'Urgencia',
       children: [

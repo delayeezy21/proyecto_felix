@@ -285,6 +285,37 @@ void main() {
       expect(find.text('Casa · Ñuñoa'), findsOneWidget);
     });
 
+    testWidgets('QA-F8-04: "Agendar primera hora libre" usa la dirección de '
+        'la urgencia aunque otra tenga la misma etiqueta y calle', (
+      tester,
+    ) async {
+      addresses.addresses.add(
+        const Address(
+          id: 'a2',
+          label: 'Casa',
+          streetText: 'Av. Ficticia 123',
+          communeId: 103,
+          communeName: 'Providencia',
+          point: GeoPoint(-33.4263, -70.6110),
+          active: true,
+        ),
+      );
+      visits.visits = [
+        urgentOwnerVisit(
+          status: VisitStatus.noVetFound,
+          addressId: 'a2',
+          communeName: 'Providencia',
+        ),
+      ];
+      await openVisits(tester);
+      await openVisit(tester, 'urg1');
+      await tester.tap(find.byKey(const Key('no-vet-schedule')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('book-from-urgent')), findsOneWidget);
+      expect(find.text('Casa · Providencia'), findsOneWidget);
+      expect(find.text('Casa · Ñuñoa'), findsNothing);
+    });
+
     testWidgets('en camino: el dueño ve al vet en el mapa y sale del canal '
         'al llegar', (tester) async {
       visits.visits = [urgentOwnerVisit(status: VisitStatus.enRoute)];
@@ -309,6 +340,27 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('live-map')), findsNothing);
       expect(session.left, isTrue);
+    });
+
+    testWidgets('O-F8-a: el dueño ignora posiciones que llegan después de '
+        '`end`', (tester) async {
+      visits.visits = [urgentOwnerVisit(status: VisitStatus.enRoute)];
+      await openVisits(tester);
+      await openVisit(tester, 'urg1');
+      final session = live.last('urg1')!;
+      session.controller.add(
+        LivePosition(LiveLocation(const GeoPoint(-33.45, -70.6), clock.now())),
+      );
+      await tester.pumpAndSettle();
+      session.controller
+        ..add(const LiveEnded())
+        ..add(
+          LivePosition(
+            LiveLocation(const GeoPoint(-33.40, -70.55), clock.now()),
+          ),
+        );
+      await tester.pumpAndSettle();
+      expect(map.lastMarkers.single.point, const GeoPoint(-33.45, -70.6));
     });
 
     for (final status in [VisitStatus.searching, VisitStatus.noVetFound]) {

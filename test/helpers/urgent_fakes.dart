@@ -42,6 +42,8 @@ Visit urgentOwnerVisit({
   String id = 'urg1',
   VisitStatus status = VisitStatus.searching,
   DateTime? searchUntil,
+  String addressId = 'a1',
+  String communeName = 'Ñuñoa',
 }) {
   final q = sampleQuote();
   return Visit(
@@ -51,10 +53,11 @@ Visit urgentOwnerVisit({
     mode: VisitMode.urgent,
     confirmDeadline: searchUntil ?? DateTime(2026, 11, 24, 12, 10),
     petId: 'p1',
+    addressId: addressId,
     petName: 'Firulais',
     speciesName: 'Perro',
     specialtyName: 'Medicina general',
-    communeName: 'Ñuñoa',
+    communeName: communeName,
     addressLabel: 'Casa',
     addressText: 'Av. Ficticia 123',
     vetName: status == VisitStatus.searching ? null : 'Dra. Vera',
