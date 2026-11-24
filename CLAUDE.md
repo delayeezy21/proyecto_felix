@@ -46,6 +46,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - Verificación del título **asistida** (`docs/verificacion-automatica.md`): Edge Function `verify-vet-title` + tabla `vet_title_verifications`. Solo sugiere chequeos y nunca aprueba. `TITLE_VERIFICATION_PROVIDER` = `off` (por defecto) | `fake` | `colmevet`. Nunca llamar a COLMEVET en tests ni en CI.
 - E2E de la verificación (`tool/e2e/verificacion_e2e.mjs`) y unit tests de los adaptadores (`node --test supabase/functions/verify-vet-title/providers.test.ts`): se ejecutan en un stack aislado con `TITLE_VERIFICATION_PROVIDER = "fake"` en `[edge_runtime.secrets]`.
 - `dart fix` puede introducir imports de `riverpod/src` y `riverpod: any`: revisar el diff después de usarlo.
+- Todo latido o temporizador de la app (refrescos, presencia, cuentas regresivas, ubicación en vivo) se pide a `clockProvider`; en los tests `testApp` usa `ManualClock` (`fire`/`advance`). En los notifiers no hagas `await` de `StreamSubscription.cancel()`: en FakeAsync se queda colgado.
 
 ## Reglas de negocio (valores por defecto, configurables en `pricing_config`)
 - Comisión 15 % del servicio; 20 % de la comisión va a la fundación elegida (o a la por defecto). Donación extra: 100 % a la fundación.

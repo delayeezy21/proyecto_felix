@@ -19,7 +19,18 @@ import 'package:proyecto_felix/ui/features/visits/view_models/visit_providers.da
 /// Agendar: mascota y dirección → vets disponibles con horarios → precio
 /// (cotización del servidor con ese vet) → reservar.
 class BookVisitView extends ConsumerStatefulWidget {
-  const new({super.key});
+  const new({
+    this.initialPetId,
+    this.initialAddressId,
+    this.fromUrgent = false,
+    super.key,
+  });
+
+  /// Preselección al venir de una urgencia sin vet ("Agendar primera hora
+  /// libre"): misma mascota y dirección, buscando desde hoy.
+  final String? initialPetId;
+  final String? initialAddressId;
+  final bool fromUrgent;
 
   @override
   ConsumerState<BookVisitView> createState() => _BookVisitViewState();
@@ -29,10 +40,12 @@ class _BookVisitViewState extends ConsumerState<BookVisitView> {
   final _form = GlobalKey<FormState>();
   final _donation = TextEditingController();
   final _notes = TextEditingController();
-  String? _petId;
-  String? _addressId;
+  late String? _petId = widget.initialPetId;
+  late String? _addressId = widget.initialAddressId;
   int? _specialtyId;
-  late DateTime _date = _today().add(const Duration(days: 1));
+  late DateTime _date = widget.fromUrgent
+      ? _today()
+      : _today().add(const Duration(days: 1));
 
   List<AvailableVet>? _vets;
   bool _searching = false;
@@ -175,10 +188,22 @@ class _BookVisitViewState extends ConsumerState<BookVisitView> {
                 const <CatalogItem>[])
             .where((s) => s.active);
     final busy = _searching || _quoting || _booking;
+    final petReady = pets.any((p) => p.id == _petId);
+    final addressReady = addresses.any((a) => a.id == _addressId);
 
     return FormPage(
       title: 'Agendar visita',
       children: [
+        if (widget.fromUrgent) ...[
+          const InfoBanner(
+            key: Key('book-from-urgent'),
+            icon: Icons.event_available_outlined,
+            message:
+                'Elige la especialidad y busca: te mostramos los horarios '
+                'libres desde hoy. Si no hay, prueba el día siguiente.',
+          ),
+          const SizedBox(height: 12),
+        ],
         const InfoBanner(
           icon: Icons.lock_outline,
           message:
@@ -192,41 +217,49 @@ class _BookVisitViewState extends ConsumerState<BookVisitView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,
             children: [
-              DropdownButtonFormField<String>(
-                key: const Key('book-pet'),
-                initialValue: _petId,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Mascota'),
-                items: [
-                  for (final p in pets)
-                    DropdownMenuItem(
-                      value: p.id,
-                      child: Text(
-                        '${p.name} · ${p.speciesName ?? ''}',
-                        overflow: TextOverflow.ellipsis,
+              // Se reconstruyen cuando llega la mascota o la dirección
+              // preseleccionada.
+              KeyedSubtree(
+                key: ValueKey('pet-$petReady'),
+                child: DropdownButtonFormField<String>(
+                  key: const Key('book-pet'),
+                  initialValue: petReady ? _petId : null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Mascota'),
+                  items: [
+                    for (final p in pets)
+                      DropdownMenuItem(
+                        value: p.id,
+                        child: Text(
+                          '${p.name} · ${p.speciesName ?? ''}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                ],
-                onChanged: busy ? null : (v) => _reset(() => _petId = v),
-                validator: (v) => v == null ? 'Elige la mascota' : null,
+                  ],
+                  onChanged: busy ? null : (v) => _reset(() => _petId = v),
+                  validator: (v) => v == null ? 'Elige la mascota' : null,
+                ),
               ),
-              DropdownButtonFormField<String>(
-                key: const Key('book-address'),
-                initialValue: _addressId,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Dirección'),
-                items: [
-                  for (final a in addresses)
-                    DropdownMenuItem(
-                      value: a.id,
-                      child: Text(
-                        '${a.label} · ${a.communeName ?? a.streetText}',
-                        overflow: TextOverflow.ellipsis,
+              KeyedSubtree(
+                key: ValueKey('address-$addressReady'),
+                child: DropdownButtonFormField<String>(
+                  key: const Key('book-address'),
+                  initialValue: addressReady ? _addressId : null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Dirección'),
+                  items: [
+                    for (final a in addresses)
+                      DropdownMenuItem(
+                        value: a.id,
+                        child: Text(
+                          '${a.label} · ${a.communeName ?? a.streetText}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                ],
-                onChanged: busy ? null : (v) => _reset(() => _addressId = v),
-                validator: (v) => v == null ? 'Elige la dirección' : null,
+                  ],
+                  onChanged: busy ? null : (v) => _reset(() => _addressId = v),
+                  validator: (v) => v == null ? 'Elige la dirección' : null,
+                ),
               ),
               DropdownButtonFormField<int>(
                 key: const Key('book-specialty'),

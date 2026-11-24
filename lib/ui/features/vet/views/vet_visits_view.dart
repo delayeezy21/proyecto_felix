@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart' show formatClp;
+import 'package:proyecto_felix/domain/models/pricing.dart';
 import 'package:proyecto_felix/domain/models/visit.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
+import 'package:proyecto_felix/ui/features/urgent/views/live_location_widgets.dart';
 import 'package:proyecto_felix/ui/features/visits/view_models/visit_providers.dart';
 import 'package:proyecto_felix/ui/features/visits/views/visit_widgets.dart';
 
@@ -18,12 +20,17 @@ class VetVisitsView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final visits = ref.watch(myVisitsProvider);
+    // Con visitas activas, refresca para ver cambios del dueño (cancelación).
+    if (visits.value?.any((v) => v.status.isOpen) ?? false) {
+      ref.watch(visitAutoRefreshProvider);
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('Mis visitas')),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(myVisitsProvider.future),
         child: switch (visits) {
-          AsyncData(:final value) => _List(visits: value),
+          // Durante un refresco se mantiene la lista (y el canal en vivo).
+          AsyncValue(value: final value?) => _List(visits: value),
           AsyncError(:final error) => SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: EmptyState(
@@ -154,8 +161,16 @@ class _VisitCard extends ConsumerWidget {
                 if (v.scheduledAt != null)
                   Text(formatSlot(v.scheduledAt!), style: t.titleMedium),
                 VisitStatusChip(status: v.status),
+                if (v.mode == VisitMode.urgent)
+                  Text(
+                    'Urgencia',
+                    key: Key('vet-visit-urgent-${v.id}'),
+                    style: t.labelLarge,
+                  ),
               ],
             ),
+            if (v.status == VisitStatus.enRoute)
+              VetLiveSharingBanner(visitId: v.id),
             Text([?v.petName, ?v.speciesName, ?v.specialtyName].join(' · ')),
             if (exact == null)
               Text(

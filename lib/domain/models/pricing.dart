@@ -66,6 +66,9 @@ class Quote {
     required this.foundationName,
     required this.expiresAt,
     this.distanceKm,
+    this.maxServicePrice,
+    this.maxTotal,
+    this.maxDistanceKm,
   });
 
   factory fromJson(Map<String, dynamic> j) => Quote(
@@ -85,6 +88,9 @@ class Quote {
     foundationName: j['foundation_name'] as String? ?? 'Fundación',
     expiresAt: DateTime.parse(j['expires_at'] as String).toLocal(),
     distanceKm: (j['distance_km'] as num?)?.toDouble(),
+    maxServicePrice: (j['max_service_price'] as num?)?.toInt(),
+    maxTotal: (j['max_total'] as num?)?.toInt(),
+    maxDistanceKm: (j['max_distance_km'] as num?)?.toDouble(),
   );
 
   final String id;
@@ -105,6 +111,12 @@ class Quote {
 
   /// Distancia redondeada a 0,5 km; null mientras no hay vet asignado.
   final double? distanceKm;
+
+  // Urgencia en búsqueda (fase 8): tope del servicio y del total si el vet
+  // que acepte está a [maxDistanceKm]. El precio final se fija al aceptar.
+  final int? maxServicePrice;
+  final int? maxTotal;
+  final double? maxDistanceKm;
 
   /// La distancia solo se conoce cuando hay un vet (fase 6 / 8).
   bool get distancePending => distanceKm == null;

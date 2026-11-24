@@ -13,6 +13,8 @@ import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
+import 'package:proyecto_felix/data/services/clock.dart';
+import 'package:proyecto_felix/data/services/device_location.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
 import 'package:proyecto_felix/data/services/recovery_flag_store.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
@@ -24,11 +26,13 @@ import 'package:proyecto_felix/domain/models/vet.dart';
 import 'clinical_fakes.dart';
 import 'owner_fakes.dart';
 import 'pricing_fakes.dart';
+import 'urgent_fakes.dart';
 import 'visit_fakes.dart';
 
 export 'clinical_fakes.dart';
 export 'owner_fakes.dart';
 export 'pricing_fakes.dart';
+export 'urgent_fakes.dart';
 export 'visit_fakes.dart';
 
 const configuredEnv = Env(
@@ -225,6 +229,10 @@ Widget testApp({
   FakeVetAgendaRepository? agenda,
   FakeRecoveryFlagStore? recoveryStore,
   FakeClinicalRepository? clinical,
+  FakeUrgentRepository? urgent,
+  FakeLiveLocationService? live,
+  FakeDeviceLocation? location,
+  AppClock? clock,
   Env env = configuredEnv,
 }) => ProviderScope(
   overrides: [
@@ -256,6 +264,15 @@ Widget testApp({
     clinicalRepositoryProvider.overrideWithValue(
       clinical ?? FakeClinicalRepository(),
     ),
+    urgentRepositoryProvider.overrideWithValue(
+      urgent ?? FakeUrgentRepository(),
+    ),
+    liveLocationServiceProvider.overrideWithValue(
+      live ?? FakeLiveLocationService(),
+    ),
+    deviceLocationProvider.overrideWithValue(location ?? FakeDeviceLocation()),
+    // Reloj manual: sin latidos reales (refrescos, cuentas regresivas).
+    clockProvider.overrideWithValue(clock ?? ManualClock()),
     recoveryFlagStoreProvider.overrideWithValue(
       recoveryStore ?? FakeRecoveryFlagStore(),
     ),
