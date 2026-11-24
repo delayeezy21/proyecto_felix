@@ -106,7 +106,11 @@ class _SupabaseSession implements LiveLocationSession {
   @override
   Future<void> sendEnd() async {
     if (_left) return;
-    await _channel.sendBroadcastMessage(event: _endEvent, payload: const {});
+    // realtime_client agrega `type` y `event` al mapa: debe ser mutable.
+    await _channel.sendBroadcastMessage(
+      event: _endEvent,
+      payload: <String, dynamic>{},
+    );
   }
 
   @override
