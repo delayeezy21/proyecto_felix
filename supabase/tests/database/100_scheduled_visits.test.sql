@@ -48,6 +48,13 @@ insert into public.vet_bases (vet_id, commune_id, lat, lng) values
 -- Sin desplazamiento del origen aproximado (QA-F5-01): montos deterministas.
 update public.vet_bases set fuzz_dlat = 0, fuzz_dlng = 0
   where vet_id in ('00000000-0000-0000-0000-0000000009b1', '00000000-0000-0000-0000-0000000009b2');
+-- O-F7-c: aísla el test de los vets que ya existan en la BD (demo o de otros
+-- E2E). Se suspenden solo dentro de esta transacción, que termina en rollback.
+set local session_replication_role = replica;
+update public.vet_profiles set status = 'suspended'
+  where status = 'approved'
+    and user_id not in ('00000000-0000-0000-0000-0000000009b1', '00000000-0000-0000-0000-0000000009b2');
+set local session_replication_role = origin;
 
 update public.foundations set is_default = false where is_default;
 insert into public.foundations (id, name, is_default) values

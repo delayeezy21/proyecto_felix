@@ -60,6 +60,10 @@ insert into public.visits (owner_id, vet_id, mode, status, commune_id, species_i
                      at time zone 'America/Santiago'),
          now() + interval '1 hour', '{}'
   from t_vets where g between 31 and 55;
+-- O-F7-c: aísla el test de los vets que ya existan en la BD (solo en esta
+-- transacción, que termina en rollback).
+update public.vet_profiles set status = 'suspended'
+  where status = 'approved' and user_id not in (select id from t_vets);
 set local session_replication_role = origin;
 
 insert into public.pricing_config
