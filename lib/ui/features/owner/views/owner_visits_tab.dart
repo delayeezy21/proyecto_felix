@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart' show formatClp;
+import 'package:proyecto_felix/domain/models/pricing.dart';
 import 'package:proyecto_felix/domain/models/visit.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
@@ -20,6 +21,17 @@ class OwnerVisitsTab extends ConsumerWidget {
       onPressed: () => context.push(AppRoutes.ownerBook),
       icon: const Icon(Icons.event_available_outlined),
       label: const Text('Agendar visita'),
+    );
+    final scheme = Theme.of(context).colorScheme;
+    final urgent = FilledButton.icon(
+      key: const Key('visit-urgent'),
+      style: FilledButton.styleFrom(
+        backgroundColor: scheme.error,
+        foregroundColor: scheme.onError,
+      ),
+      onPressed: () => context.push(AppRoutes.ownerUrgent),
+      icon: const Icon(Icons.emergency_outlined),
+      label: const Text('Urgencia ahora'),
     );
     final visits = ref.watch(myVisitsProvider);
     return RefreshIndicator(
@@ -40,7 +52,7 @@ class OwnerVisitsTab extends ConsumerWidget {
                     'Mis visitas',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  book,
+                  Wrap(spacing: 8, runSpacing: 8, children: [urgent, book]),
                 ],
               ),
             ),
@@ -96,7 +108,12 @@ class _VisitTile extends StatelessWidget {
     ].join(' · ');
     return ListTile(
       key: Key('visit-${v.id}'),
-      leading: const Icon(Icons.event_note_outlined),
+      leading: Icon(
+        v.mode == VisitMode.urgent
+            ? Icons.emergency_outlined
+            : Icons.event_note_outlined,
+        semanticLabel: v.mode.label,
+      ),
       title: Text(when.isEmpty ? v.status.label : when),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

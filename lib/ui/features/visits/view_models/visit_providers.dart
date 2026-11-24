@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/providers.dart';
+import 'package:proyecto_felix/data/services/clock.dart';
 import 'package:proyecto_felix/domain/models/visit.dart';
 
 /// Visitas del usuario actual (el servidor decide qué ve el dueño y el vet).
@@ -41,3 +42,16 @@ Future<int> requestTransition(
     ref.invalidate(myVisitsProvider);
   }
 }
+
+/// Mientras se mira una visita activa, refresca `my_visits` cada 15 s: así
+/// llegan los cambios de la otra parte dentro de la app (Windows no tiene
+/// push y, mientras FCM no esté configurado, tampoco las demás plataformas).
+final Provider<void> visitAutoRefreshProvider = Provider.autoDispose<void>((
+  ref,
+) {
+  final sub = ref
+      .watch(clockProvider)
+      .every(const Duration(seconds: 15))
+      .listen((_) => ref.invalidate(myVisitsProvider));
+  ref.onDispose(sub.cancel);
+});

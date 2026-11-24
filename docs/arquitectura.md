@@ -259,6 +259,34 @@ Las transiciones se validan en la función `private.transition_visit(visit_id, t
 - **Ubicación en vivo:** políticas `visit_location_receive` (SELECT: dueño y vet asignado) y `visit_location_send` (INSERT: solo el vet asignado) en `realtime.messages`, extensión `broadcast`, topic `visit:{uuid}`, solo con la visita `en_route` (`private.can_use_visit_topic`). Realtime evalúa la política al unirse: al llegar o cancelar, la app debe salir del canal y no se autorizan nuevos joins. No se guarda el recorrido.
 - **Push:** triggers encolan en `private.push_outbox` (solo usuarios con dispositivo) `offer_new` / `offer_taken` / `offer_cancelled` al vet y `visit_<estado>` (p. ej. `visit_accepted`, `visit_en_route`, `visit_no_vet_found`, `visit_cancelled_owner`) a la otra parte de cada cambio de `visit_events`. La Edge Function `send-push` (`PUSH_PROVIDER` = `off` por defecto | `fake` | `fcm` con el secreto `FCM_SERVICE_ACCOUNT`) toma lotes con `claim_push_batch` (como máximo una entrega) y envía un mensaje FCM v1 **solo con `data: {visit_id, event}`**; borra los tokens `UNREGISTERED`. pg_cron `send-push` la invoca cada 10 s por `pg_net` solo si hay pendientes y existen los secretos de Vault `project_url` y `service_role_key` (los mismos de `purge-vet-documents`); sin ellos la cola espera. `purge-push` (cada hora) borra la cola a las 24 h y los tokens sin uso en 90 días.
 
+**Fase 8 en la app (Flutter):** `UrgentRepository` (`lib/data/repositories/urgent_repository.dart`) llama las RPC; los ViewModels están en `lib/ui/features/urgent/view_models/urgent_providers.dart` y las vistas en `lib/ui/features/urgent/views/`. Todos los latidos usan `clockProvider` (`AppClock`), que en los tests se reemplaza por `ManualClock`.
+- **Dueño:** "Urgencia ahora" (pestaña Visitas → `/owner/urgent`) elige mascota y dirección activas, y la especialidad es opcional (por defecto, general). El detalle de la visita (`/owner/visits/:id`) cambia según el estado:
+  - `searching`: "Buscando vet" muestra el radio, la tanda, los vets revisando la solicitud, la cuenta regresiva hasta `search_until` y el tope ("hasta $X", `quote.max_total`). Se puede cancelar sin costo.
+  - `no_vet_found`: muestra "Agendar primera hora libre" (`/owner/book?from=urgent&pet=…&address=…`, desde hoy) y "Clínicas 24 h" (`/owner/clinics`, activas y primero las de la comuna).
+  - Otros estados: el detalle normal.
+  
+  **Refresco:** `urgent_search_status` cada **5 s**. Se usa sondeo y no Realtime porque la tabla `visits` no se publica por Realtime (solo la ubicación en vivo) y la consulta es liviana. Al salir de `searching`, refresca `my_visits`.
+- **Vet:** la tarjeta "Urgencias" del inicio trae el interruptor **En línea**, que llama `set_vet_presence` al activarlo y cada **30 s**.
+  - Posición: la del dispositivo (`geolocator`: Android, iOS, Web y Windows). Si no hay permiso o señal, usa el punto de partida (`vet_bases`); si tampoco existe, no se pone en línea.
+  - Al apagarlo, y antes de cerrar sesión, envía `p_online = false`. Si la app se cierra sin avisar, el servidor descarta la presencia a los 2 min.
+  - Con el interruptor activo, `my_offers` se consulta cada 5 s. Cada oferta muestra comuna, distancia a 0,5 km, especie, especialidad, pago al vet y una cuenta regresiva de 60 s (al vencer desaparece). Nunca muestra la dirección.
+  - Aceptar abre "Mis visitas", con la dirección exacta. Los `hint` `offer_taken` / `offer_expired` / `offer_closed` llegan como `OfferFailure`: se avisa ("Otro vet ya tomó esta urgencia") y la oferta se quita de la lista.
+- **Ubicación en vivo (`LiveLocationService`):** canal privado `visit:{id}` (`RealtimeChannelConfig(private: true)`).
+  - Con la visita `en_route`, la tarjeta de "Mis visitas" del vet publica `{lat, lng, at}` cada **5 s**, solo con la posición real del dispositivo (no usa la base como respaldo). El vet debe mantener esa pantalla abierta.
+  - El dueño ve el marcador en un mapa vía `MapAdapter` (OSM en Windows).
+  - Ambos salen del canal cuando el widget deja de construirse: al llegar, al cancelar o al salir de la pantalla. Antes de salir, el vet manda el evento `end` y el dueño refresca la visita.
+  - Mientras una visita está abierta, el detalle del dueño y "Mis visitas" del vet refrescan `my_visits` cada **15 s**. Así se reciben los avisos dentro de la app en todas las plataformas.
+- **Push en la app:** existe la abstracción `PushService` (`lib/data/services/push_service.dart`), con `NoopPushService` por defecto. `PushPayload.tryParse` acepta solo `{visit_id, event}`, descarta cualquier otro campo, y la app arma el texto. `pushMessagesProvider` ya refresca la búsqueda y las ofertas cuando llega un aviso, así que FCM se puede conectar sin tocar las pantallas. **Para activar FCM (lo hace el usuario):**
+  1. Crear el proyecto Firebase y registrar las apps Android, iOS y Web. Ejecutar `flutterfire configure` para generar `firebase_options.dart`, `google-services.json` y `GoogleService-Info.plist` (no se versionan si contienen claves de producción).
+  2. Agregar `firebase_core` y `firebase_messaging` (versiones estables). En Web, además, `web/firebase-messaging-sw.js` y la clave VAPID.
+  3. Implementar `FcmPushService`:
+     - `start()`: pide permiso, obtiene el token y llama `PushDeviceRegistry.register(token, android|ios|web)`; también lo hace en `onTokenRefresh`.
+     - `stop()`: llama `unregister` al cerrar sesión.
+     - `messages`: mapea `onMessage` y `onMessageOpenedApp` con `PushPayload.tryParse(message.data)`.
+     - Sobrescribir `pushServiceProvider` con esta clase, salvo en Windows, y llamar `start()` al iniciar sesión y `stop()` antes de cerrarla (hoy nadie los llama porque la implementación es no-op).
+  4. En el servidor: `PUSH_PROVIDER = fcm`, el secreto `FCM_SERVICE_ACCOUNT` y los secretos de Vault `project_url` / `service_role_key`, para que pg_cron invoque `send-push`.
+  5. Probar en dispositivos reales que el payload llegue solo con `data` (sin `notification`). El texto lo arma la app.
+
 **Presupuesto Realtime:** 200 conexiones simultáneas y 2 M de mensajes al mes. Un trayecto de 20 min con posición cada 5 s son unos 240 mensajes. Alcanza para una demo de sobra.
 
 ## 7. Políticas RLS de la ficha clínica

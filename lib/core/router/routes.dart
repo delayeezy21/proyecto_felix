@@ -18,6 +18,19 @@ abstract final class AppRoutes {
   static String ownerPetRecord(String id) => '/owner/pets/$id/record';
   static String ownerPetRecordLog(String id) => '/owner/pets/$id/record/log';
   static const ownerBook = '/owner/book';
+
+  /// Agendar con mascota y dirección ya elegidas, desde hoy (sin vet para una
+  /// urgencia: "Agendar primera hora libre").
+  static String ownerBookFrom({String? petId, String? addressId}) => Uri(
+    path: ownerBook,
+    queryParameters: {'from': 'urgent', 'pet': ?petId, 'address': ?addressId},
+  ).toString();
+  static const ownerUrgent = '/owner/urgent';
+  static const ownerClinics = '/owner/clinics';
+  static String ownerClinicsNear(String? communeName) => Uri(
+    path: ownerClinics,
+    queryParameters: {'commune': ?communeName},
+  ).toString();
   static String ownerVisit(String id) => '/owner/visits/$id';
   static String ownerVisitPay(String id) => '/owner/visits/$id/pay';
   static const vet = '/vet';
