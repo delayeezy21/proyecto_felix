@@ -104,14 +104,30 @@ final FutureProvider<List<EmergencyClinic>> emergencyClinicsProvider =
 /// Dueño: posición del vet en camino por el canal `visit:{id}`. Al dejar de
 /// mirarla (llegó, cancelada o salió de la pantalla) se sale del canal. Si el
 /// vet avisa que terminó, se refresca la visita.
+///
+/// O-F8-a: Realtime revisa la política solo al unirse, así que un vet que ya
+/// estaba en el canal podría seguir enviando tras "llegó". Se ignoran las
+/// posiciones que lleguen después de `end` o cuando la última vista conocida
+/// de la visita ya no está `en_route`.
 final StreamProviderFamily<LiveLocation, String> ownerLiveLocationProvider =
     StreamProvider.autoDispose.family<LiveLocation, String>((ref, visitId) {
       final session = ref.watch(liveLocationServiceProvider).join(visitId);
       ref.onDispose(() => unawaited(session.leave()));
+      var ended = false;
+      bool stillEnRoute() {
+        final visits = ref.read(myVisitsProvider).value;
+        final status = visits?.where((v) => v.id == visitId).firstOrNull;
+        return status == null || status.status == VisitStatus.enRoute;
+      }
+
       return session.events
           .where((e) {
-            if (e is LiveEnded) ref.invalidate(myVisitsProvider);
-            return e is LivePosition;
+            if (e is LiveEnded) {
+              ended = true;
+              ref.invalidate(myVisitsProvider);
+              return false;
+            }
+            return e is LivePosition && !ended && stillEnRoute();
           })
           .map((e) => (e as LivePosition).location);
     });
