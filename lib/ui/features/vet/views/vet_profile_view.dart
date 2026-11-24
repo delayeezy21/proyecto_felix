@@ -16,6 +16,8 @@ import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
+import 'package:proyecto_felix/ui/features/urgent/view_models/urgent_providers.dart';
+import 'package:proyecto_felix/ui/features/urgent/views/vet_urgent_card.dart';
 import 'package:proyecto_felix/ui/features/vet/view_models/vet_providers.dart';
 import 'package:proyecto_felix/ui/features/visits/view_models/visit_providers.dart';
 
@@ -39,8 +41,11 @@ class VetProfileView extends ConsumerWidget {
             key: const Key('sign-out'),
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
-            onPressed: () =>
-                ref.read(authControllerProvider.notifier).signOut(),
+            onPressed: () async {
+              // Antes de salir: fuera de línea (luego ya no hay sesión).
+              await ref.read(vetPresenceProvider.notifier).goOffline();
+              await ref.read(authControllerProvider.notifier).signOut();
+            },
           ),
         ],
       ),
@@ -81,6 +86,8 @@ class _Body extends ConsumerWidget {
             children: [
               _StatusBanner(profile: profile),
               if (profile.status == VetStatus.approved) ...[
+                const SizedBox(height: 12),
+                const VetUrgentCard(),
                 const SizedBox(height: 12),
                 const _AgendaCard(),
               ],

@@ -4,12 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart' show formatClp;
+import 'package:proyecto_felix/domain/models/pricing.dart';
 import 'package:proyecto_felix/domain/models/visit.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/owner/views/quote_breakdown.dart';
+import 'package:proyecto_felix/ui/features/urgent/views/live_location_widgets.dart';
+import 'package:proyecto_felix/ui/features/urgent/views/urgent_search_view.dart';
 import 'package:proyecto_felix/ui/features/visits/view_models/visit_providers.dart';
 import 'package:proyecto_felix/ui/features/visits/views/visit_widgets.dart';
 
@@ -20,7 +23,11 @@ Widget _withVisit(
   String title,
   Widget Function(Visit visit) builder,
 ) => switch (ref.watch(myVisitsProvider)) {
-  AsyncData(:final value) => switch (value.where((v) => v.id == visitId)) {
+  // Durante un refresco se mantiene la última lista (sin parpadeo ni salir
+  // del canal de ubicación en vivo).
+  AsyncValue(value: final value?) => switch (value.where(
+    (v) => v.id == visitId,
+  )) {
     final found when found.isNotEmpty => builder(found.first),
     _ => Scaffold(
       appBar: AppBar(title: Text(title)),
@@ -58,8 +65,17 @@ class OwnerVisitView extends ConsumerWidget {
   final String visitId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) =>
-      _withVisit(ref, visitId, 'Visita', (v) => _Detail(visit: v));
+  Widget build(BuildContext context, WidgetRef ref) => _withVisit(
+    ref,
+    visitId,
+    'Visita',
+    (v) => switch (v) {
+      Visit(mode: VisitMode.urgent, status: VisitStatus.searching) =>
+        UrgentSearchView(visit: v),
+      Visit(status: VisitStatus.noVetFound) => NoVetFoundView(visit: v),
+      _ => _Detail(visit: v),
+    },
+  );
 }
 
 class _Detail extends ConsumerWidget {
@@ -97,6 +113,8 @@ class _Detail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final v = visit;
     final t = Theme.of(context).textTheme;
+    // Cambios de la otra parte (vet en camino, llegó…) dentro de la app.
+    if (v.status.isOpen) ref.watch(visitAutoRefreshProvider);
     final rows = <(IconData, String)>[
       if (v.scheduledAt != null)
         (Icons.event_outlined, formatSlot(v.scheduledAt!)),
@@ -126,6 +144,11 @@ class _Detail extends ConsumerWidget {
             leading: Icon(icon),
             title: Text(text),
           ),
+        if (v.status == VisitStatus.enRoute) ...[
+          const SizedBox(height: 8),
+          OwnerLiveMap(visitId: v.id),
+          const SizedBox(height: 8),
+        ],
         if (v.status == VisitStatus.pendingVet && v.confirmDeadline != null)
           InfoBanner(
             key: const Key('visit-deadline'),

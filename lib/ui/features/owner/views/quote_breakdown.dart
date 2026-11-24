@@ -68,6 +68,16 @@ class QuoteBreakdown extends StatelessWidget {
               key: const Key('quote-total'),
               emphasis: true,
             ),
+            // Urgencia en búsqueda: el total final depende del vet que
+            // acepte; el servidor informa el tope (vet en el radio máximo).
+            if (q.distancePending && q.maxTotal != null)
+              _TextLine(
+                q.maxDistanceKm == null
+                    ? 'Total máximo'
+                    : 'Total máximo (vet a ${_km(q.maxDistanceKm!)})',
+                'hasta ${formatClp(q.maxTotal!)}',
+                key: const Key('quote-max-total'),
+              ),
             const Divider(height: 24),
             Text('¿A dónde va tu pago?', style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),

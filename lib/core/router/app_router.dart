@@ -24,6 +24,8 @@ import 'package:proyecto_felix/ui/features/owner/views/owner_visit_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/pet_form_view.dart';
 import 'package:proyecto_felix/ui/features/record/views/access_log_view.dart';
 import 'package:proyecto_felix/ui/features/record/views/pet_record_view.dart';
+import 'package:proyecto_felix/ui/features/urgent/views/emergency_clinics_view.dart';
+import 'package:proyecto_felix/ui/features/urgent/views/urgent_request_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_base_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_profile_view.dart';
 import 'package:proyecto_felix/ui/features/vet/views/vet_visits_view.dart';
@@ -125,7 +127,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: 'book',
-            builder: (context, state) => const BookVisitView(),
+            builder: (context, state) {
+              final q = state.uri.queryParameters;
+              return BookVisitView(
+                initialPetId: q['pet'],
+                initialAddressId: q['address'],
+                fromUrgent: q['from'] == 'urgent',
+              );
+            },
+          ),
+          GoRoute(
+            path: 'urgent',
+            builder: (context, state) => const UrgentRequestView(),
+          ),
+          GoRoute(
+            path: 'clinics',
+            builder: (context, state) => EmergencyClinicsView(
+              communeName: state.uri.queryParameters['commune'],
+            ),
           ),
           GoRoute(
             path: 'visits/:id',

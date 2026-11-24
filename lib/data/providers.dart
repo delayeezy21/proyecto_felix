@@ -5,8 +5,10 @@ import 'package:proyecto_felix/data/repositories/clinical_repository.dart';
 import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
 import 'package:proyecto_felix/data/repositories/pricing_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
+import 'package:proyecto_felix/data/repositories/urgent_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/data/repositories/visit_repository.dart';
+import 'package:proyecto_felix/data/services/live_location_service.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -70,4 +72,12 @@ final clinicalRepositoryProvider = Provider<ClinicalRepository>(
 
 final vetAgendaRepositoryProvider = Provider<VetAgendaRepository>(
   (ref) => SupabaseVetAgendaRepository(ref.watch(supabaseClientProvider)),
+);
+
+final urgentRepositoryProvider = Provider<UrgentRepository>(
+  (ref) => SupabaseUrgentRepository(ref.watch(supabaseClientProvider)),
+);
+
+final liveLocationServiceProvider = Provider<LiveLocationService>(
+  (ref) => SupabaseLiveLocationService(ref.watch(supabaseClientProvider)),
 );
