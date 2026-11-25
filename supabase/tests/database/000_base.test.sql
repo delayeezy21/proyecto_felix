@@ -71,7 +71,12 @@ select is_empty(
                               -- QA de la fase 11.
                               'my_payouts', 'assert_subject_not_blocked',
                               -- Re-QA db5f16c (políticas RLS del bloqueo).
-                              'admin_may_treat', 'folder_owner_blocked') $$,
+                              'admin_may_treat', 'folder_owner_blocked',
+                              -- Fase 9 (calificaciones y cancelaciones).
+                              'rate_visit', 'visit_rating_status', 'my_ratings_received',
+                              'my_rating_summary', 'vet_rating_summary', 'admin_list_ratings',
+                              'admin_set_rating_hidden', 'admin_list_cancel_alerts',
+                              'admin_review_cancel_alert') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 
