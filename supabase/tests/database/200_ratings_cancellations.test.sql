@@ -225,8 +225,8 @@ select ok(not exists (select 1 from public.my_ratings_received() where rater_rol
   'el vet solo recibe calificaciones de dueños');
 
 -- Cuentas bloqueadas -------------------------------------------------------------
-select is(pg_temp.try($$ select pg_temp.rate('d05', 5) $$), 'denied',
-  'no se califica a una cuenta bloqueada');
+select is(pg_temp.try($$ select pg_temp.rate('d05', 5) $$), 'err:22023',
+  'no se califica a una cuenta bloqueada (22023, no 42501: no es mi bloqueo)');
 select is(pg_temp.st('d05') -> 'theirs', 'null'::jsonb,
   'la calificación de una cuenta bloqueada no se muestra');
 reset role;

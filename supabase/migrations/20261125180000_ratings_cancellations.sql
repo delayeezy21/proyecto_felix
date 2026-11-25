@@ -285,9 +285,15 @@ begin
   end if;
   v_role := case when v_uid = v.owner_id then 'owner' else 'vet' end;
   v_ratee := case when v_role = 'owner' then v.vet_id else v.owner_id end;
-  if private.is_blocked(v_uid) or private.is_blocked(v_ratee) then
-    raise exception 'La cuenta tiene una solicitud de eliminación: no se puede calificar'
+  if private.is_blocked(v_uid) then
+    raise exception 'Tu cuenta está bloqueada por una solicitud de eliminación'
       using errcode = '42501', hint = 'account_blocked';
+  end if;
+  -- La otra parte bloqueada no es MI bloqueo: 22023 (HTTP 400) y otro hint,
+  -- para que AccountBlockedHttpClient no lleve al usuario a /account-blocked.
+  if private.is_blocked(v_ratee) then
+    raise exception 'La otra cuenta tiene una solicitud de eliminación: no se puede calificar'
+      using errcode = '22023', hint = 'counterpart_blocked';
   end if;
   if v.status <> 'completed' or v.completed_at is null or v_ratee is null then
     raise exception 'Solo se califican visitas completadas' using errcode = '22023';

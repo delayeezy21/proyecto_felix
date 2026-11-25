@@ -161,10 +161,10 @@ void main() {
     test('la cuenta bloqueada de la otra parte no es la mía', () async {
       final e = await failWith(
         pgError(
-          '42501',
-          'La cuenta tiene una solicitud de eliminación: no se puede calificar',
-          hint: accountBlockedHint,
-          status: 403,
+          '22023',
+          'La otra cuenta tiene una solicitud de eliminación: no se puede '
+              'calificar',
+          hint: 'counterpart_blocked',
         ),
       );
       expect(e, isA<RatingFailure>());

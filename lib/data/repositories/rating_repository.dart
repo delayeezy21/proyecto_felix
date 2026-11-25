@@ -48,7 +48,8 @@ abstract interface class RatingRepository {
 /// Traduce un error de PostgREST de las RPC de calificaciones.
 Exception mapRatingError(PostgrestException e) {
   // La cuenta bloqueada es la de la otra parte: no es la mía.
-  if (e.message.startsWith('La cuenta tiene una solicitud')) {
+  if (e.hint == 'counterpart_blocked' ||
+      e.message.startsWith('La otra cuenta tiene una solicitud')) {
     return const RatingFailure(
       'Esta visita ya no se puede calificar: la otra cuenta está en proceso '
       'de borrado.',
