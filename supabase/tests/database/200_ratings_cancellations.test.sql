@@ -4,7 +4,7 @@
 -- (f01), otro vet (f02), vet que cancela (f03), vet bloqueado (f04), vets de
 -- la tabla de cargos (f05…f0b), admin (c01) y anónimo.
 begin;
-select plan(86);
+select plan(87);
 -- Sesión en UTC+14: las ventanas no dependen de la zona horaria.
 set local timezone = 'Etc/GMT-14';
 
@@ -366,6 +366,11 @@ select pg_temp.login('a01');
 select is((select jsonb_array_length(j -> 'ratings_given') || '/' || jsonb_array_length(j -> 'ratings_received')
            from (select public.export_my_data() j) e), '3/1',
   'la exportación del dueño trae sus calificaciones hechas y las recibidas publicadas');
+reset role;
+select pg_temp.login('f01');
+select ok(not exists (select 1 from jsonb_array_elements(public.export_my_data() -> 'ratings_received') x
+                      where x ->> 'visit_id' = pg_temp.u('d05')::text),
+  'QA-F9-01: la exportación no trae calificaciones de una cuenta bloqueada');
 reset role;
 select pg_temp.login('f03');
 select is(jsonb_array_length(public.export_my_data() -> 'cancel_alerts'), 2,

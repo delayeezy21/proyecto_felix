@@ -628,6 +628,7 @@ begin
                   order by r.created_at)
                   from public.ratings r join public.visits vi on vi.id = r.visit_id
                   where r.ratee_id = v_uid
+                    and not private.is_blocked(r.rater_id)
                     and private.rating_public_at(r.published_at, vi.completed_at) <= now()), '[]'));
 
   if v_role = 'owner' then
