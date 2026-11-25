@@ -8,6 +8,7 @@ import 'package:proyecto_felix/domain/models/visit.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
+import 'package:proyecto_felix/ui/features/ratings/views/rating_widgets.dart';
 import 'package:proyecto_felix/ui/features/urgent/views/live_location_widgets.dart';
 import 'package:proyecto_felix/ui/features/visits/view_models/visit_providers.dart';
 import 'package:proyecto_felix/ui/features/visits/views/visit_widgets.dart';
@@ -230,6 +231,13 @@ class _VisitCard extends ConsumerWidget {
                     label: Text(
                       v.recordWritable ? 'Ficha y registro' : 'Ver ficha',
                     ),
+                  ),
+                if (v.status == VisitStatus.completed)
+                  OutlinedButton.icon(
+                    key: Key('vet-rate-${v.id}'),
+                    onPressed: () => showVisitRatingSheet(context, v.id),
+                    icon: const Icon(Icons.star_outline),
+                    label: const Text('Calificación'),
                   ),
                 for (final a in vetActionsFor(v.status))
                   if (a.destructive)

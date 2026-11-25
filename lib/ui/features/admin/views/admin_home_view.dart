@@ -9,6 +9,7 @@ import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/admin/view_models/admin_catalog_providers.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_foundations_tab.dart';
+import 'package:proyecto_felix/ui/features/admin/views/admin_ratings_tab.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_vet_review_view.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_visits_tab.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
@@ -21,7 +22,7 @@ class AdminHomeView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 8,
+      length: 10,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Administración'),
@@ -57,6 +58,11 @@ class AdminHomeView extends ConsumerWidget {
                 text: 'Fundaciones',
               ),
               Tab(icon: Icon(Icons.event_note_outlined), text: 'Visitas'),
+              Tab(icon: Icon(Icons.star_outline), text: 'Calificaciones'),
+              Tab(
+                icon: Icon(Icons.event_busy_outlined),
+                text: 'Alertas de cancelación',
+              ),
             ],
           ),
         ),
@@ -70,6 +76,8 @@ class AdminHomeView extends ConsumerWidget {
             _ClinicsTab(),
             AdminFoundationsTab(),
             AdminVisitsTab(),
+            AdminRatingsTab(),
+            AdminCancelAlertsTab(),
           ],
         ),
       ),
