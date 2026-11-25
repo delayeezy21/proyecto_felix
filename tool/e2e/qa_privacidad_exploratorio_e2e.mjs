@@ -333,6 +333,19 @@ try {
   const stVR = sql(`select status from public.vet_profiles where user_id = '${VR.id}'`);
   expectFixed(review.status >= 400 && stVR === 'pending', 'QA-F11-04',
     `el admin no aprueba la solicitud de un vet bloqueado (HTTP ${review.status}, estado ${stVR})`);
+  // Re-QA db5f16c: ¿una cuarta vía? El admin escribe directo por REST (sin la RPC) sobre el vet bloqueado.
+  const admProf = await call(`/rest/v1/vet_profiles?user_id=eq.${VR.id}`, { method: 'PATCH', token: AD.token,
+    prefer: 'return=representation', body: { status: 'approved', reviewed_at: new Date().toISOString(), review_notes: 'QA directo' } });
+  const stVR2 = sql(`select status || '|' || coalesce(review_notes, '-') from public.vet_profiles where user_id = '${VR.id}'`);
+  expectFixed(admProf.status >= 400 && stVR2 === 'pending|-', 'QA-F11-07',
+    `el admin no aprueba ni anota al vet bloqueado con PATCH directo a vet_profiles (HTTP ${admProf.status}, ${stVR2})`);
+  const admDoc = await call(`/rest/v1/vet_documents?vet_id=eq.${VR.id}`, { method: 'PATCH', token: AD.token,
+    prefer: 'return=representation', body: { review_status: 'accepted' } });
+  const docVR = sql(`select string_agg(distinct review_status, ',') from public.vet_documents where vet_id = '${VR.id}'`);
+  expectFixed(admDoc.status >= 400 && docVR !== 'accepted', 'QA-F11-07',
+    `el admin no revisa los documentos del vet bloqueado con PATCH directo (HTTP ${admDoc.status}, review_status ${docVR})`);
+  const admSign = await call(`/storage/v1/object/sign/vet-documents/${tp}`, { method: 'POST', token: AD.token, body: { expiresIn: 60 } });
+  info(`el admin firma el título del vet bloqueado: HTTP ${admSign.status} (lectura para auditoría; ver informe)`);
   const vrReq = sql(`select id from public.deletion_requests where user_id = '${VR.id}' and status = 'blocked'`);
 
   // =====================================================================================
@@ -376,6 +389,24 @@ try {
   info(`HU8.6: el vet lee del pago de su visita ${JSON.stringify(vetPay.json)}; cotizaciones del dueño: ${JSON.stringify(vetQuote.json)}`);
   expectFixed(!(vetPay.json?.[0]?.owner_id || vetPay.json?.[0]?.extra_donation), 'QA-F11-05',
     'HU8.6: el vet no ve el dueño ni la donación del pago de su visita');
+  // Re-QA db5f16c: QA-F11-05 por las otras vías (REST sin filtro, GraphQL, my_payouts, Realtime).
+  const vetPayAll = await call('/rest/v1/payments?select=id', { token: VC.token });
+  const gqlPay = await call('/graphql/v1', { method: 'POST', token: VC.token,
+    body: { query: '{ paymentsCollection { edges { node { id ownerId extraDonation total } } } }' } });
+  const gqlRows = gqlPay.json?.data?.paymentsCollection?.edges ?? [];
+  const payouts = await rpc('my_payouts', {}, VC.token);
+  const pk = Object.keys(payouts.json?.[0] ?? {}).sort().join(',');
+  check(Array.isArray(vetPayAll.json) && vetPayAll.json.length === 0 && gqlRows.length === 0,
+    `QA-F11-05: el vet no lee filas de payments por REST ni GraphQL (REST ${vetPayAll.json?.length}, GraphQL ${gqlRows.length})`);
+  check(payouts.status === 200 && payouts.json.some((p) => p.visit_id === visitC)
+    && pk === 'created_at,kind,paid_at,platform_fee,service_price,status,vet_payout,visit_id',
+  `QA-F11-05: my_payouts del vet trae su liquidación sin dueño, total, cotización ni donación (${pk})`);
+  const payoutsOwner = await rpc('my_payouts', {}, OC.token);
+  const payoutsF = await rpc('my_payouts', {}, FM.token);
+  check(payoutsOwner.status === 200 && payoutsOwner.json.length === 0 && payoutsF.status === 200 && payoutsF.json.length === 0,
+    'QA-F11-05: my_payouts no devuelve nada al dueño ni a la fundación');
+  const pubs = sql("select coalesce(string_agg(schemaname || '.' || tablename, ','), '-') from pg_publication_tables where tablename in ('payments','quotes','payment_events','foundation_contributions')");
+  check(pubs === '-', `QA-F11-05: payments, quotes y sus eventos no están en ninguna publicación de Realtime (${pubs})`);
   const fPay = await call('/rest/v1/payments?select=id', { token: FM.token });
   const fQ = await call('/rest/v1/quotes?select=id', { token: FM.token });
   check(Array.isArray(fPay.json) && fPay.json.length === 0 && (fQ.json?.length ?? 0) === 0, 'HU8.6: la fundación no lee pagos ni cotizaciones');
