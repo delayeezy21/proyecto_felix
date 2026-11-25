@@ -16,6 +16,7 @@ import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
+import 'package:proyecto_felix/ui/features/privacy/views/privacy_widgets.dart';
 import 'package:proyecto_felix/ui/features/urgent/view_models/urgent_providers.dart';
 import 'package:proyecto_felix/ui/features/urgent/views/vet_urgent_card.dart';
 import 'package:proyecto_felix/ui/features/vet/view_models/vet_providers.dart';
@@ -38,6 +39,12 @@ class VetProfileView extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            key: const Key('vet-privacy'),
+            tooltip: 'Privacidad y datos',
+            icon: const Icon(Icons.privacy_tip_outlined),
+            onPressed: () => context.push(AppRoutes.privacy),
+          ),
+          IconButton(
             key: const Key('sign-out'),
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
@@ -49,22 +56,29 @@ class VetProfileView extends ConsumerWidget {
           ),
         ],
       ),
-      body: switch (profile) {
-        AsyncData(:final value) => _Body(profile: value),
-        AsyncError(:final error) => SingleChildScrollView(
-          child: EmptyState(
-            icon: Icons.cloud_off,
-            isError: true,
-            title: friendlyError(error),
-            action: OutlinedButton.icon(
-              onPressed: () => ref.invalidate(vetProfileProvider),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
-            ),
+      body: Column(
+        children: [
+          const PrivacyNoticeBanner(),
+          Expanded(
+            child: switch (profile) {
+              AsyncData(:final value) => _Body(profile: value),
+              AsyncError(:final error) => SingleChildScrollView(
+                child: EmptyState(
+                  icon: Icons.cloud_off,
+                  isError: true,
+                  title: friendlyError(error),
+                  action: OutlinedButton.icon(
+                    onPressed: () => ref.invalidate(vetProfileProvider),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Reintentar'),
+                  ),
+                ),
+              ),
+              _ => const LoadingView(),
+            },
           ),
-        ),
-        _ => const LoadingView(),
-      },
+        ],
+      ),
     );
   }
 }

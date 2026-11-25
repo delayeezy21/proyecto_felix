@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
+import 'package:proyecto_felix/data/services/account_blocked.dart';
 import 'package:proyecto_felix/data/services/recovery_flag_store.dart';
 
 /// Acciones de autenticación. El estado indica si hay una operación en curso
@@ -23,6 +24,7 @@ class AuthController extends AsyncNotifier<void> {
 
   Future<bool> signOut() {
     ref.read(passwordRecoveryProvider.notifier).finish();
+    ref.read(accountBlockedSignalProvider).clear();
     return _run(_repo.signOut);
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/data/providers.dart';
+import 'package:proyecto_felix/data/services/account_blocked.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_home_view.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_vet_review_view.dart';
@@ -22,6 +23,9 @@ import 'package:proyecto_felix/ui/features/owner/views/owner_home_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_profile_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_visit_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/pet_form_view.dart';
+import 'package:proyecto_felix/ui/features/privacy/views/account_blocked_view.dart';
+import 'package:proyecto_felix/ui/features/privacy/views/privacy_policy_view.dart';
+import 'package:proyecto_felix/ui/features/privacy/views/privacy_view.dart';
 import 'package:proyecto_felix/ui/features/record/views/access_log_view.dart';
 import 'package:proyecto_felix/ui/features/record/views/pet_record_view.dart';
 import 'package:proyecto_felix/ui/features/urgent/views/emergency_clinics_view.dart';
@@ -33,10 +37,12 @@ import 'package:proyecto_felix/ui/features/vet/views/vet_visits_view.dart';
 /// Router con protección por sesión y rol (ver `AppRoutes.redirect`).
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
+  final blocked = ref.watch(accountBlockedSignalProvider);
   ref
     ..listen(sessionProvider, (_, _) => refresh.value++)
     ..listen(passwordRecoveryProvider, (_, _) => refresh.value++)
     ..onDispose(refresh.dispose);
+  final listenable = Listenable.merge([refresh, blocked]);
 
   SessionSnapshot currentSession() => switch (ref.read(sessionProvider)) {
     AsyncData(:final value) => value,
@@ -46,13 +52,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   final router = GoRouter(
     initialLocation: AppRoutes.splash,
-    refreshListenable: refresh,
+    refreshListenable: listenable,
     redirect: (context, state) => AppRoutes.redirect(
       currentSession(),
       state.matchedLocation,
       recoveringPassword: ref.read(passwordRecoveryProvider),
+      accountBlocked: blocked.blocked,
     ),
     routes: [
+      GoRoute(
+        path: AppRoutes.accountBlocked,
+        builder: (context, state) => const AccountBlockedView(),
+      ),
+      GoRoute(
+        path: AppRoutes.privacy,
+        builder: (context, state) => const PrivacyView(),
+        routes: [
+          GoRoute(
+            path: 'policy',
+            builder: (context, state) => const PrivacyPolicyView(),
+          ),
+        ],
+      ),
       GoRoute(
         path: AppRoutes.splash,
         builder: (context, state) => const SplashView(),

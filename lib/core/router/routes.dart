@@ -44,6 +44,13 @@ abstract final class AppRoutes {
   static const admin = '/admin';
   static const foundation = '/foundation';
 
+  /// Privacidad y datos (los tres roles; también el vet en revisión).
+  static const privacy = '/privacy';
+  static const privacyPolicy = '/privacy/policy';
+
+  /// Cuenta en proceso de borrado: solo cancelar, exportar o salir.
+  static const accountBlocked = '/account-blocked';
+
   static const Set<String> _public = {login, signUp, forgotPassword};
 
   /// Pantalla de inicio según el rol (y el estado de aprobación del vet).
@@ -60,11 +67,22 @@ abstract final class AppRoutes {
   ///
   /// [recoveringPassword]: el usuario volvió del enlace de "Olvidé mi
   /// contraseña" y debe fijar una nueva antes de seguir.
+  ///
+  /// [accountBlocked]: alguna llamada respondió `account_blocked` (hay una
+  /// solicitud de eliminación vigente).
   static String? redirect(
     SessionSnapshot session,
     String location, {
     bool recoveringPassword = false,
+    bool accountBlocked = false,
   }) {
+    // Cuenta en proceso de borrado: solo su pantalla (cancelar, exportar o
+    // salir), antes que cualquier otra regla.
+    if (session is SignedIn && (session.blocked || accountBlocked)) {
+      return location == AppRoutes.accountBlocked
+          ? null
+          : AppRoutes.accountBlocked;
+    }
     if (recoveringPassword && session is SignedIn) {
       return location == resetPassword ? null : resetPassword;
     }
@@ -83,6 +101,10 @@ abstract final class AppRoutes {
         return location == onboarding ? null : onboarding;
       case SignedIn(:final account?):
         final home = homeFor(account);
+        // Privacidad y datos: para todo rol (también el vet en revisión).
+        if (location == privacy || location.startsWith('$privacy/')) {
+          return null;
+        }
         // Un vet no aprobado solo puede estar en su pantalla de espera.
         if (home == vetPending) return location == vetPending ? null : home;
         if (location == vetPending) return home;

@@ -12,6 +12,7 @@ import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart
 import 'package:proyecto_felix/ui/features/owner/view_models/owner_providers.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_visits_tab.dart';
 import 'package:proyecto_felix/ui/features/owner/views/quote_view.dart';
+import 'package:proyecto_felix/ui/features/privacy/views/privacy_widgets.dart';
 
 /// Inicio del dueño: mascotas, direcciones, cotizar y visitas.
 class OwnerHomeView extends ConsumerWidget {
@@ -31,7 +32,7 @@ class OwnerHomeView extends ConsumerWidget {
           actions: [
             IconButton(
               key: const Key('owner-profile'),
-              tooltip: 'Mi perfil y fundación',
+              tooltip: 'Mi perfil, fundación y privacidad',
               icon: const Icon(Icons.volunteer_activism_outlined),
               onPressed: () => context.push(AppRoutes.ownerProfile),
             ),
@@ -53,12 +54,19 @@ class OwnerHomeView extends ConsumerWidget {
             ],
           ),
         ),
-        body: TabBarView(
+        body: Column(
           children: [
-            _PetsTab(greeting: name),
-            const _AddressesTab(),
-            const QuotePanel(),
-            const OwnerVisitsTab(),
+            const PrivacyNoticeBanner(),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _PetsTab(greeting: name),
+                  const _AddressesTab(),
+                  const QuotePanel(),
+                  const OwnerVisitsTab(),
+                ],
+              ),
+            ),
           ],
         ),
       ),
