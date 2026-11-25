@@ -363,7 +363,7 @@ Matriz pgTAP obligatoria (fase 7): {dueño, otro dueño, vet con visita activa, 
 
 ## 8. Privacidad (Ley 21.719, vigente desde el 1 de diciembre de 2026)
 
-Revisado por el agente Privacy Engineer (2026-11-16). El detalle va en `docs/privacidad.md` (fase 12).
+Revisado por el agente Privacy Engineer (2026-11-16 y 2026-11-25, fase 11). Inventario, encargados, hallazgos con su estado y la lista P3: `docs/privacidad.md`.
 
 - **Titulares:** dueños, vets y miembros de fundaciones. Los tres tienen derechos de acceso, rectificación, supresión, oposición, portabilidad y bloqueo.
 - **Minimización:** sin RUT (ni dueño ni vet). La dirección exacta y el teléfono del dueño solo los ve el vet asignado durante la visita. No se guarda el recorrido GPS y `vet_presence` se sobrescribe sin historial. La dirección se geocodifica **una sola vez** al guardarla. El microchip solo lo ven el dueño y un vet con acceso. El plan y los pagos del dueño nunca se muestran a vets ni fundaciones.
