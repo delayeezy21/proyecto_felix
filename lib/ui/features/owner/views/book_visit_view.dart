@@ -14,6 +14,7 @@ import 'package:proyecto_felix/ui/core/form_error.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/owner/view_models/owner_providers.dart';
 import 'package:proyecto_felix/ui/features/owner/views/quote_breakdown.dart';
+import 'package:proyecto_felix/ui/features/ratings/views/vet_ratings_card.dart';
 import 'package:proyecto_felix/ui/features/visits/view_models/visit_providers.dart';
 
 /// Agendar: mascota y dirección → vets disponibles con horarios → precio
@@ -388,6 +389,7 @@ class _VetSlots extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(vet.displayName, style: t.titleMedium),
+            VetRatingBadge(vetId: vet.vetId),
             Text('A unos ${formatKm(vet.distanceKm)}', style: t.bodySmall),
             if ((vet.bio ?? '').isNotEmpty) ...[
               const SizedBox(height: 4),

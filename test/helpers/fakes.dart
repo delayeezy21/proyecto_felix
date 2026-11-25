@@ -28,6 +28,7 @@ import 'clinical_fakes.dart';
 import 'owner_fakes.dart';
 import 'pricing_fakes.dart';
 import 'privacy_fakes.dart';
+import 'rating_fakes.dart';
 import 'urgent_fakes.dart';
 import 'visit_fakes.dart';
 
@@ -35,6 +36,7 @@ export 'clinical_fakes.dart';
 export 'owner_fakes.dart';
 export 'pricing_fakes.dart';
 export 'privacy_fakes.dart';
+export 'rating_fakes.dart';
 export 'urgent_fakes.dart';
 export 'visit_fakes.dart';
 
@@ -242,16 +244,22 @@ Widget testApp({
   FakeDeviceLocation? location,
   AppClock? clock,
   FakePrivacyRepository? privacy,
+  FakeRatingRepository? ratings,
+  Duration? Function(int retryCount, Object error)? retry,
   FakeFileSaver? fileSaver,
   AccountBlockedSignal? blockedSignal,
   Env env = configuredEnv,
 }) => ProviderScope(
+  retry: retry,
   overrides: [
     envProvider.overrideWithValue(env),
     privacyRepositoryProvider.overrideWithValue(
       privacy ?? FakePrivacyRepository(),
     ),
     fileSaverProvider.overrideWithValue(fileSaver ?? FakeFileSaver()),
+    ratingRepositoryProvider.overrideWithValue(
+      ratings ?? FakeRatingRepository(),
+    ),
     if (blockedSignal != null)
       accountBlockedSignalProvider.overrideWithValue(blockedSignal),
     authRepositoryProvider.overrideWithValue(auth),

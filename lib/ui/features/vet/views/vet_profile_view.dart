@@ -17,6 +17,7 @@ import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 import 'package:proyecto_felix/ui/features/privacy/views/privacy_widgets.dart';
+import 'package:proyecto_felix/ui/features/ratings/views/vet_ratings_card.dart';
 import 'package:proyecto_felix/ui/features/urgent/view_models/urgent_providers.dart';
 import 'package:proyecto_felix/ui/features/urgent/views/vet_urgent_card.dart';
 import 'package:proyecto_felix/ui/features/vet/view_models/vet_providers.dart';
@@ -104,6 +105,8 @@ class _Body extends ConsumerWidget {
                 const VetUrgentCard(),
                 const SizedBox(height: 12),
                 const _AgendaCard(),
+                const SizedBox(height: 12),
+                const VetRatingsCard(),
               ],
               const SizedBox(height: 12),
               _ProfessionalDataCard(profile: profile),

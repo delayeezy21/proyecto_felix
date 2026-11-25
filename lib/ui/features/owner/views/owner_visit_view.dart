@@ -11,6 +11,7 @@ import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/owner/views/quote_breakdown.dart';
+import 'package:proyecto_felix/ui/features/ratings/views/rating_widgets.dart';
 import 'package:proyecto_felix/ui/features/urgent/views/live_location_widgets.dart';
 import 'package:proyecto_felix/ui/features/urgent/views/urgent_search_view.dart';
 import 'package:proyecto_felix/ui/features/visits/view_models/visit_providers.dart';
@@ -204,6 +205,10 @@ class _Detail extends ConsumerWidget {
             icon: Icons.check_circle_outline,
             message: 'Pagada (simulado). ¡Gracias por tu aporte!',
           ),
+        if (v.status == VisitStatus.completed) ...[
+          const SizedBox(height: 16),
+          VisitRatingCard(visitId: v.id),
+        ],
         if (v.canCancel) ...[
           const SizedBox(height: 8),
           OutlinedButton.icon(
