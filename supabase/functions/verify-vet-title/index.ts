@@ -9,7 +9,7 @@
 // Sin datos personales en la respuesta ni en los logs.
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import type { TitleVerificationResult } from './providers.ts';
-import { readConfig, runVerification } from './run.ts';
+import { readConfig, runVerification, subjectGate } from './run.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -54,6 +54,13 @@ Deno.serve(async (req) => {
   } else {
     return json({ error: 'forbidden' }, 403);
   }
+
+  // QA-F11-04: con la clave de servicio el pre-request de PostgREST no actúa.
+  // Una cuenta bloqueada (solicitud de eliminación) no se trata: se rechaza
+  // antes de leer su perfil, reservar cupo o llamar a un proveedor externo.
+  const gate = await subjectGate((ids) => db.rpc('any_account_blocked', { p_user_ids: ids }), [vetId, uid]);
+  if (gate === 'blocked') return json({ error: 'account_blocked' }, 403);
+  if (gate === 'error') return json({ error: 'blocked_check_failed' }, 500);
 
   const { data: p } = await db
     .from('vet_profiles')

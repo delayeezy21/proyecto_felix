@@ -35,6 +35,14 @@ class OwnerProfileView extends ConsumerWidget {
               _FoundationChoice(foundations: list, currentId: id),
               const Divider(height: 40),
               ListTile(
+                key: const Key('profile-privacy'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Privacidad y datos'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRoutes.privacy),
+              ),
+              ListTile(
                 key: const Key('profile-about'),
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.info_outline),

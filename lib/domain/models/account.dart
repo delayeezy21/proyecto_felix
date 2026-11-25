@@ -71,11 +71,15 @@ final class SessionFailed extends SessionSnapshot {
   const new();
 }
 
-/// Usuario autenticado. `account` es null si aún no completa el registro.
+/// Usuario autenticado. `account` es null si aún no completa el registro o
+/// si la cuenta está bloqueada por una solicitud de eliminación ([blocked]).
 final class SignedIn extends SessionSnapshot {
-  const new(this.account);
+  const new(this.account, {this.blocked = false});
 
   final Account? account;
+
+  /// Cuenta en proceso de borrado: solo puede cancelar, exportar o salir.
+  final bool blocked;
 }
 
 /// Versiones legales vigentes que el usuario acepta o ve al registrarse.

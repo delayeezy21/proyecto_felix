@@ -1,3 +1,4 @@
+import 'package:proyecto_felix/data/services/account_blocked.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -37,6 +38,16 @@ class SupabaseProfileRepository implements ProfileRepository {
   // las filas, así que no basta con confiar en ella para "mi" fila.
   @override
   Future<Account?> fetchAccount() async {
+    try {
+      return await _fetchAccount();
+    } on PostgrestException catch (e) {
+      // Cuenta en proceso de borrado: el router muestra esa pantalla.
+      if (isAccountBlocked(e)) throw const AccountBlockedException();
+      rethrow;
+    }
+  }
+
+  Future<Account?> _fetchAccount() async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return null;
     final roleRow = await _client

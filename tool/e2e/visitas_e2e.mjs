@@ -196,9 +196,15 @@ try {
     `pago simulado por el precio congelado ($${pay.json?.total})`);
   check((await rpc('simulate_payment', { p_visit_id: v1 }, ownerA.token)).status === 400, 'una visita no se paga dos veces');
   check((await mv(v1, ownerA.token))?.paid === true, 'el dueño ve la visita pagada');
-  const vetPays = await call(`/rest/v1/payments?select=kind,status,vet_payout&visit_id=eq.${v1}`, { token: vet.token });
-  check(vetPays.json.length === 2 && vetPays.json.some((p) => p.status === 'simulated_paid'), 'el vet ve los pagos de su visita');
-  check(((await call('/rest/v1/payments?select=id', { token: vetCat.token })).json ?? []).length === 0, 'otro vet no ve esos pagos');
+  // QA-F11-05 (HU8.6): el vet ve sus liquidaciones por my_payouts, no las filas de payments.
+  const vetPays = ((await rpc('my_payouts', {}, vet.token)).json ?? []).filter((p) => p.visit_id === v1);
+  check(vetPays.length === 2 && vetPays.some((p) => p.status === 'simulated_paid' && p.vet_payout > 0)
+    && vetPays.every((p) => !('owner_id' in p) && !('extra_donation' in p) && !('total' in p)),
+  'el vet ve las liquidaciones de su visita (sin dueño, total ni donación)');
+  check(((await call(`/rest/v1/payments?select=id&visit_id=eq.${v1}`, { token: vet.token })).json ?? []).length === 0,
+    'el vet no lee las filas de payments (HU8.6)');
+  check(((await call('/rest/v1/payments?select=id', { token: vetCat.token })).json ?? []).length === 0
+    && ((await rpc('my_payouts', {}, vetCat.token)).json ?? []).length === 0, 'otro vet no ve esos pagos');
 
   // --- Cancelaciones ------------------------------------------------------------------
   const v3 = (await book(await quote(), at(18))).json.id;

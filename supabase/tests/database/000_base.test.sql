@@ -62,7 +62,16 @@ select is_empty(
                               'set_vet_presence', 'request_urgent_visit',
                               'urgent_search_status', 'list_my_offers', 'accept_offer',
                               'reject_offer', 'can_use_visit_topic',
-                              'register_push_device', 'unregister_push_device') $$,
+                              'register_push_device', 'unregister_push_device',
+                              -- Fase 11 (derechos de privacidad).
+                              'account_blocked', 'export_my_data',
+                              'request_account_deletion', 'cancel_account_deletion',
+                              'my_deletion_request', 'list_my_retained_entries',
+                              'request_retained_entry',
+                              -- QA de la fase 11.
+                              'my_payouts', 'assert_subject_not_blocked',
+                              -- Re-QA db5f16c (políticas RLS del bloqueo).
+                              'admin_may_treat', 'folder_owner_blocked') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 

@@ -13,6 +13,7 @@ import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
+import 'package:proyecto_felix/data/services/account_blocked.dart';
 import 'package:proyecto_felix/data/services/clock.dart';
 import 'package:proyecto_felix/data/services/device_location.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
@@ -26,12 +27,14 @@ import 'package:proyecto_felix/domain/models/vet.dart';
 import 'clinical_fakes.dart';
 import 'owner_fakes.dart';
 import 'pricing_fakes.dart';
+import 'privacy_fakes.dart';
 import 'urgent_fakes.dart';
 import 'visit_fakes.dart';
 
 export 'clinical_fakes.dart';
 export 'owner_fakes.dart';
 export 'pricing_fakes.dart';
+export 'privacy_fakes.dart';
 export 'urgent_fakes.dart';
 export 'visit_fakes.dart';
 
@@ -170,9 +173,14 @@ class FakeProfileRepository implements ProfileRepository {
   /// Si es true, fetchAccount falla (simula error de red o del backend).
   bool failFetch = false;
 
+  /// Si es true, fetchAccount responde como el servidor con la cuenta
+  /// bloqueada por una solicitud de eliminación (403 `account_blocked`).
+  bool blocked = false;
+
   @override
   Future<Account?> fetchAccount() async {
     if (failFetch) throw const ProfileFailure('sin conexión');
+    if (blocked) throw const AccountBlockedException();
     return accounts[_auth.userId];
   }
 
@@ -233,10 +241,19 @@ Widget testApp({
   FakeLiveLocationService? live,
   FakeDeviceLocation? location,
   AppClock? clock,
+  FakePrivacyRepository? privacy,
+  FakeFileSaver? fileSaver,
+  AccountBlockedSignal? blockedSignal,
   Env env = configuredEnv,
 }) => ProviderScope(
   overrides: [
     envProvider.overrideWithValue(env),
+    privacyRepositoryProvider.overrideWithValue(
+      privacy ?? FakePrivacyRepository(),
+    ),
+    fileSaverProvider.overrideWithValue(fileSaver ?? FakeFileSaver()),
+    if (blockedSignal != null)
+      accountBlockedSignalProvider.overrideWithValue(blockedSignal),
     authRepositoryProvider.overrideWithValue(auth),
     profileRepositoryProvider.overrideWithValue(profiles),
     catalogRepositoryProvider.overrideWithValue(

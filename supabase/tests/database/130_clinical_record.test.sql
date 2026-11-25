@@ -5,6 +5,8 @@
 -- 'denied' (42501) o 'err:<sqlstate>'.
 begin;
 select plan(59);
+-- QA-F11-02: sesión en UTC+14 (current_date ≠ fecha de Chile, como de 21:00 a 24:00).
+set local timezone = 'Etc/GMT-14';
 
 -- Fixtures (sin triggers; luego se vuelve a `origin`) -----------------------
 insert into auth.users (id, email)
@@ -88,7 +90,7 @@ insert into public.clinical_entries (id, pet_id, visit_id, author_id, author_rol
    'vaccine', (select id from public.species where slug = 'perro'), 'Antirrábica', null);
 insert into public.clinical_vaccines (entry_id, pet_id, vaccine_name, applied_on, next_due)
 values ('00000000-0000-0000-0000-0000000c7ee3', '00000000-0000-0000-0000-0000000c7e01',
-        'Antirrábica', current_date, current_date + 365);
+        'Antirrábica', (now() at time zone 'America/Santiago')::date, (now() at time zone 'America/Santiago')::date + 365);
 insert into storage.objects (bucket_id, name) values ('clinical-attachments',
   'pets/00000000-0000-0000-0000-0000000c7e01/00000000-0000-0000-0000-0000000c7ee1/rx.pdf');
 insert into public.entry_attachments (id, entry_id, pet_id, storage_path, file_name, mime,
@@ -324,8 +326,8 @@ insert into t_ids values ('d1', public.add_clinical_entry('00000000-0000-0000-00
   '00000000-0000-0000-0000-0000000c7ee1'));
 insert into t_ids values ('vac', public.add_clinical_entry('00000000-0000-0000-0000-0000000c7e01',
   'vaccine', 'Óctuple', null, '00000000-0000-0000-0000-0000000c7d01', null, null,
-  jsonb_build_object('vaccine_name', 'Óctuple', 'applied_on', current_date,
-                     'next_due', current_date + 30)));
+  jsonb_build_object('vaccine_name', 'Óctuple', 'applied_on', (now() at time zone 'America/Santiago')::date,
+                     'next_due', (now() at time zone 'America/Santiago')::date + 30)));
 select throws_ok($$ select public.add_clinical_entry('00000000-0000-0000-0000-0000000c7e01',
   'vaccine', 'Sin datos', null, '00000000-0000-0000-0000-0000000c7d01') $$, '22023', null,
   'una vacuna exige sus datos');

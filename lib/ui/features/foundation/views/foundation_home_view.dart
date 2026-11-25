@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart' show formatClp;
 import 'package:proyecto_felix/domain/models/pricing.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
@@ -7,6 +9,7 @@ import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 import 'package:proyecto_felix/ui/features/foundation/view_models/foundation_providers.dart';
+import 'package:proyecto_felix/ui/features/privacy/views/privacy_widgets.dart';
 
 /// Panel de la fundación: total recibido y detalle por mes (solo agregados,
 /// sin datos de los dueños: Ley 21.719).
@@ -26,6 +29,12 @@ class FoundationHomeView extends ConsumerWidget {
         title: Text(foundation.value?.name ?? 'Fundación'),
         actions: [
           IconButton(
+            key: const Key('foundation-privacy'),
+            tooltip: 'Privacidad y datos',
+            icon: const Icon(Icons.privacy_tip_outlined),
+            onPressed: () => context.push(AppRoutes.privacy),
+          ),
+          IconButton(
             key: const Key('sign-out'),
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
@@ -34,37 +43,49 @@ class FoundationHomeView extends ConsumerWidget {
           ),
         ],
       ),
-      body: switch ((foundation, summary)) {
-        (AsyncData(value: null), _) => const SingleChildScrollView(
-          child: EmptyState(
-            key: Key('foundation-no-membership'),
-            icon: Icons.volunteer_activism_outlined,
-            title: 'Tu cuenta no está asociada a una fundación activa.',
-            message: 'Contacta al administrador de Felix.',
-          ),
-        ),
-        (AsyncData(), AsyncData(value: final months)) => RefreshIndicator(
-          onRefresh: () => ref.refresh(foundationSummaryProvider.future),
-          child: _SummaryList(months: months),
-        ),
-        (AsyncError(:final error), _) ||
-        (_, AsyncError(:final error)) => SingleChildScrollView(
-          child: EmptyState(
-            icon: Icons.cloud_off_outlined,
-            title: 'No se pudo cargar.',
-            message: friendlyError(error),
-            isError: true,
-            action: OutlinedButton.icon(
-              onPressed: retry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
-            ),
-          ),
-        ),
-        _ => const LoadingView(),
-      },
+      body: Column(
+        children: [
+          const PrivacyNoticeBanner(),
+          Expanded(child: _body(foundation, summary, retry, ref)),
+        ],
+      ),
     );
   }
+
+  Widget _body(
+    AsyncValue<Foundation?> foundation,
+    AsyncValue<List<FoundationMonth>> summary,
+    VoidCallback retry,
+    WidgetRef ref,
+  ) => switch ((foundation, summary)) {
+    (AsyncData(value: null), _) => const SingleChildScrollView(
+      child: EmptyState(
+        key: Key('foundation-no-membership'),
+        icon: Icons.volunteer_activism_outlined,
+        title: 'Tu cuenta no está asociada a una fundación activa.',
+        message: 'Contacta al administrador de Felix.',
+      ),
+    ),
+    (AsyncData(), AsyncData(value: final months)) => RefreshIndicator(
+      onRefresh: () => ref.refresh(foundationSummaryProvider.future),
+      child: _SummaryList(months: months),
+    ),
+    (AsyncError(:final error), _) ||
+    (_, AsyncError(:final error)) => SingleChildScrollView(
+      child: EmptyState(
+        icon: Icons.cloud_off_outlined,
+        title: 'No se pudo cargar.',
+        message: friendlyError(error),
+        isError: true,
+        action: OutlinedButton.icon(
+          onPressed: retry,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Reintentar'),
+        ),
+      ),
+    ),
+    _ => const LoadingView(),
+  };
 }
 
 class _SummaryList extends StatelessWidget {

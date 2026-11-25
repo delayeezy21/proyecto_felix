@@ -90,3 +90,23 @@ export async function runVerification(
   }
   return results;
 }
+
+export type BlockedCheck = (ids: string[]) => PromiseLike<{ data: unknown; error: unknown }>;
+
+/**
+ * QA-F11-04: ¿se puede tratar a estos titulares? Una cuenta con solicitud de
+ * eliminación (bloqueada) no se trata y, ante cualquier duda (error o
+ * respuesta inesperada), se falla cerrado.
+ */
+export async function subjectGate(
+  check: BlockedCheck,
+  ids: string[],
+): Promise<'ok' | 'blocked' | 'error'> {
+  try {
+    const { data, error } = await check([...new Set(ids)]);
+    if (error || typeof data !== 'boolean') return 'error';
+    return data ? 'blocked' : 'ok';
+  } catch {
+    return 'error';
+  }
+}

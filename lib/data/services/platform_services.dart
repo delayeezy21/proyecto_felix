@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/services/picker_web_options_stub.dart'
     if (dart.library.js_interop) 'package:proyecto_felix/data/services/picker_web_options_web.dart';
@@ -37,6 +40,42 @@ class PlatformUrlOpener implements UrlOpener {
   Future<bool> open(String url) =>
       launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 }
+
+/// Guardar un archivo generado por la app (exportación de mis datos).
+abstract interface class FileSaver {
+  /// Devuelve false si el usuario canceló el diálogo.
+  Future<bool> save({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+  });
+}
+
+/// file_picker (ya era dependencia): diálogo "Guardar como" en Windows,
+/// selector del sistema en Android e iOS y descarga del navegador en Web.
+class PlatformFileSaver implements FileSaver {
+  const new();
+
+  @override
+  Future<bool> save({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    final uri = await FilePicker.saveFile(
+      fileName: fileName,
+      bytes: bytes,
+      mimeType: mimeType,
+      dialogTitle: 'Guardar mis datos',
+    );
+    // En Web se descarga directo y file_picker devuelve null (no cancela).
+    return uri != null || kIsWeb;
+  }
+}
+
+final fileSaverProvider = Provider<FileSaver>(
+  (ref) => const PlatformFileSaver(),
+);
 
 final documentPickerProvider = Provider<DocumentPicker>(
   (ref) => const PlatformDocumentPicker(),

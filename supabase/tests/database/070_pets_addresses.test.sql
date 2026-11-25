@@ -1,6 +1,8 @@
 -- Fase 4: mascotas y direcciones (RLS, privilegios, validaciones, PostGIS).
 begin;
 select plan(48);
+-- QA-F11-02: sesión en UTC+14 (current_date ≠ fecha de Chile, como de 21:00 a 24:00).
+set local timezone = 'Etc/GMT-14';
 
 -- Fixtures ------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -112,7 +114,7 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.pets (owner_id, name, species_id, birth_date_approx)
      values ('00000000-0000-0000-0000-0000000007a1', 'X', pg_temp.sp('gato'),
-             current_date + 30) $$,
+             (now() at time zone 'America/Santiago')::date + 30) $$,
   '22023', 'La fecha de nacimiento no puede ser futura', 'la fecha de nacimiento no es futura');
 select throws_ok(
   $$ insert into public.pets (owner_id, name, species_id, microchip)

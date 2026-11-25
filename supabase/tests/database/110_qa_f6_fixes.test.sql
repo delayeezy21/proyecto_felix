@@ -1,6 +1,8 @@
 -- Correcciones de QA fase 6 (QA-F6-01 a 05 y horario inmutable).
 begin;
 select plan(29);
+-- QA-F11-02: sesión en UTC+14 (current_date ≠ fecha de Chile, como de 21:00 a 24:00).
+set local timezone = 'Etc/GMT-14';
 
 -- Fixtures ------------------------------------------------------------------
 -- Dueño A, vet V (con base), vet S (aprobado, SIN base), admin y 25 vets más
@@ -173,7 +175,7 @@ select pg_temp.login('00000000-0000-0000-0000-00000000a6a1');
 set local role authenticated;
 select throws_ok(
   $$ select public.available_vets('00000000-0000-0000-0000-00000000e6a1',
-       '00000000-0000-0000-0000-00000000e6b1', pg_temp.spec(), current_date + 1) $$,
+       '00000000-0000-0000-0000-00000000e6b1', pg_temp.spec(), (now() at time zone 'America/Santiago')::date + 1) $$,
   '22023', 'Demasiadas búsquedas. Espera un minuto.', 'tope de 30 búsquedas por dueño y minuto');
 reset role;
 update private.search_quota set window_start = now() - interval '61 seconds'
@@ -182,7 +184,7 @@ select pg_temp.login('00000000-0000-0000-0000-00000000a6a1');
 set local role authenticated;
 select lives_ok(
   $$ select public.available_vets('00000000-0000-0000-0000-00000000e6a1',
-       '00000000-0000-0000-0000-00000000e6b1', pg_temp.spec(), current_date + 1) $$,
+       '00000000-0000-0000-0000-00000000e6b1', pg_temp.spec(), (now() at time zone 'America/Santiago')::date + 1) $$,
   'pasado el minuto se puede volver a buscar');
 select ok(not has_table_privilege('authenticated', 'private.search_quota', 'select'),
   'la app no lee ni escribe el contador');

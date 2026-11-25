@@ -4,10 +4,12 @@ import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/clinical_repository.dart';
 import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
 import 'package:proyecto_felix/data/repositories/pricing_repository.dart';
+import 'package:proyecto_felix/data/repositories/privacy_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
 import 'package:proyecto_felix/data/repositories/urgent_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/data/repositories/visit_repository.dart';
+import 'package:proyecto_felix/data/services/account_blocked.dart';
 import 'package:proyecto_felix/data/services/live_location_service.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -55,12 +57,25 @@ final foundationRepositoryProvider = Provider<FoundationRepository>(
 final sessionProvider = StreamProvider<SessionSnapshot>((ref) {
   final auth = ref.watch(authRepositoryProvider);
   final profiles = ref.watch(profileRepositoryProvider);
-  return auth.watchUserId().distinct().asyncMap(
-    (uid) async => uid == null
-        ? const SignedOut()
-        : SignedIn(await profiles.fetchAccount()),
-  );
+  final blocked = ref.watch(accountBlockedSignalProvider);
+  return auth.watchUserId().distinct().asyncMap((uid) async {
+    if (uid == null) {
+      blocked.clear();
+      return const SignedOut();
+    }
+    try {
+      return SignedIn(await profiles.fetchAccount());
+    } on AccountBlockedException {
+      // Inició sesión durante la gracia de un borrado (arquitectura §8.2).
+      blocked.report();
+      return const SignedIn(null, blocked: true);
+    }
+  });
 });
+
+final privacyRepositoryProvider = Provider<PrivacyRepository>(
+  (ref) => SupabasePrivacyRepository(ref.watch(supabaseClientProvider)),
+);
 
 final visitRepositoryProvider = Provider<VisitRepository>(
   (ref) => SupabaseVisitRepository(ref.watch(supabaseClientProvider)),
