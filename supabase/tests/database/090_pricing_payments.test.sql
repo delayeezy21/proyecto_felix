@@ -207,15 +207,15 @@ select is(pg_temp.pc(30000, true, 8000), '9000,3,1500,0,40500,6075,1215,34425,40
   'caso 08: urgencia + distancia');
 select is(pg_temp.pc(30000, false, null, 2000), '0,0,0,0,30000,4500,900,25500,32000',
   'caso 09: donación extra suma al total, no a la comisión');
-select is(pg_temp.pc(25000, false, null, 0, 10), '0,0,0,2500,22500,3375,675,19125,22500',
+select is(pg_temp.pc(25000, false, null, 0, 10), '0,0,0,2500,22500,3750,750,21250,22500',
   'caso 10: suscripción Básico (10 % de descuento sobre la base)');
-select is(pg_temp.pc(35000, true, null, 0, 20, true), '0,0,0,7000,28000,4200,840,23800,28000',
+select is(pg_temp.pc(35000, true, null, 0, 20, true), '0,0,0,7000,28000,6825,1365,38675,28000',
   'caso 11: suscripción Plus (20 % y sin recargo de urgencia)');
-select is(pg_temp.pc(25000, true, null, 0, 10), '7500,0,0,2500,30000,4500,900,25500,30000',
+select is(pg_temp.pc(25000, true, null, 0, 10), '7500,0,0,2500,30000,4875,975,27625,30000',
   'caso 12: Básico en urgencia sí paga el recargo');
-select is(pg_temp.pc(20000, false, null, 0, 0, false, true), '0,0,0,20000,0,0,0,0,0',
+select is(pg_temp.pc(20000, false, null, 0, 0, false, true), '0,0,0,20000,0,3000,600,17000,0',
   'caso 13: preventiva incluida en el plan (base $0)');
-select is(pg_temp.pc(20000, false, null, 1000, 0, false, true), '0,0,0,20000,0,0,0,0,1000',
+select is(pg_temp.pc(20000, false, null, 1000, 0, false, true), '0,0,0,20000,0,3000,600,17000,1000',
   'caso 14: preventiva incluida + donación');
 select is(pg_temp.pc(25333, false, null), '0,0,0,0,25333,3800,760,21533,25333',
   'caso 15: redondeo de la comisión (3.799,95 → 3.800)');
@@ -228,7 +228,7 @@ select is(pg_temp.pc(20000, true, 4500, 0, 0, false, false, 12.5, 25, 50, 700, 3
   'caso 18: configuración distinta (12,5 % / 25 % / 50 % / $700 / 3 km)');
 select is(pg_temp.pc(20000, false, null, 0, 0, false, false, 0, 20), '0,0,0,0,20000,0,0,20000,20000',
   'caso 19: comisión 0 % (todo al vet)');
-select is(pg_temp.pc(25000, true, 9999, 500, 20, true), '0,5,2500,5000,22500,3375,675,19125,23000',
+select is(pg_temp.pc(25000, true, 9999, 500, 20, true), '0,5,2500,5000,22500,5250,1050,29750,23000',
   'caso 20: Plus en urgencia a 10 km con donación');
 -- Consulta general a domicilio (decisión de negocio): $26.990 todo incluido
 -- hasta 5 km → comisión 4.049, fundación 810, vet 22.941.
