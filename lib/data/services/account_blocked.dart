@@ -22,7 +22,11 @@ class AccountBlockedException implements Exception {
 const accountBlockedHint = 'account_blocked';
 
 /// true si el error de PostgREST es el bloqueo por eliminación de cuenta.
-bool isAccountBlocked(PostgrestException e) => e.hint == accountBlockedHint;
+///
+/// Con `maybeSingle()` postgrest-dart 2.x pierde el `hint` y deja el cuerpo
+/// crudo en `message`, por eso también se busca ahí.
+bool isAccountBlocked(PostgrestException e) =>
+    e.hint == accountBlockedHint || e.message.contains(accountBlockedHint);
 
 /// Aviso global de "cuenta bloqueada". Lo enciende cualquier respuesta 403
 /// con `account_blocked` (ver [AccountBlockedHttpClient]) o un repositorio;
