@@ -67,7 +67,9 @@ select is_empty(
                               'account_blocked', 'export_my_data',
                               'request_account_deletion', 'cancel_account_deletion',
                               'my_deletion_request', 'list_my_retained_entries',
-                              'request_retained_entry') $$,
+                              'request_retained_entry',
+                              -- QA de la fase 11.
+                              'my_payouts', 'assert_subject_not_blocked') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 

@@ -4,7 +4,9 @@
 -- miembro de fundación) con Storage, redacción, escaneo final e idempotencia,
 -- acceso a entradas retenidas, retención, huérfanos (M2), HU8.6 y escaneo de PII.
 begin;
-select plan(137);
+select plan(138);
+-- QA-F11-02: sesión en UTC+14 (current_date ≠ fecha de Chile, como de 21:00 a 24:00).
+set local timezone = 'Etc/GMT-14';
 
 create function pg_temp.u(k text) returns uuid language sql immutable as $$
   select ('00000000-0000-0000-0000-000000170' || k)::uuid $$;
@@ -110,7 +112,7 @@ insert into public.clinical_entries (id, pet_id, visit_id, author_id, author_rol
    (select id from public.species where slug = 'perro'), 'Retenida vencida', null,
    now() - interval '1 day');
 insert into public.clinical_vaccines (entry_id, pet_id, vaccine_name, applied_on, next_due)
-values (pg_temp.u('ee3'), pg_temp.u('e01'), 'Antirrábica', current_date, current_date + 365);
+values (pg_temp.u('ee3'), pg_temp.u('e01'), 'Antirrábica', (now() at time zone 'America/Santiago')::date, (now() at time zone 'America/Santiago')::date + 365);
 insert into storage.objects (bucket_id, name, owner_id, created_at) values
   ('clinical-attachments', 'pets/' || pg_temp.u('e01') || '/' || pg_temp.u('ee1') || '/rx.pdf',
    pg_temp.u('b01')::text, now()),
@@ -260,7 +262,8 @@ select is((public.export_my_data() -> 'memberships' -> 0 ->> 'foundation'), 'Fun
 
 -- 4. HU8.6 ----------------------------------------------------------------------
 select pg_temp.login('b01');
-select is((select count(*)::int from public.payments), 1, 'el vet ve solo el pago de su visita');
+select is((select count(*)::int from public.my_payouts()), 1, 'el vet ve solo la liquidación de su visita (my_payouts)');
+select is((select count(*)::int from public.payments), 0, 'el vet no lee filas de payments (QA-F11-05)');
 select is((select count(*)::int from public.pets), 0, 'el vet no lee mascotas (ni el microchip) directo');
 select is((public.get_pet_record(pg_temp.u('e01'), pg_temp.u('f01')) -> 'pet' ->> 'microchip'),
   '941000012345678', 'el microchip lo ve el vet con acceso vigente');
@@ -450,12 +453,12 @@ select is((select count(*)::int from public.retained_entry_requests), 1, 'el adm
 
 -- 9. Vet que borra su cuenta (HU8.5) ------------------------------------------------
 reset role;
-select ok((select count(*) from private.vet_open_slots(pg_temp.u('b02'), current_date + 2)) > 0,
+select ok((select count(*) from private.vet_open_slots(pg_temp.u('b02'), (now() at time zone 'America/Santiago')::date + 2)) > 0,
   'antes de pedir el borrado el vet ofrece horas');
 select pg_temp.login('b02');
 create temp table t_vreq as select public.request_account_deletion() as j;
 reset role;
-select is((select count(*)::int from private.vet_open_slots(pg_temp.u('b02'), current_date + 2)), 0,
+select is((select count(*)::int from private.vet_open_slots(pg_temp.u('b02'), (now() at time zone 'America/Santiago')::date + 2)), 0,
   'un vet bloqueado no ofrece horas');
 select is((select online from public.vet_presence where vet_id = pg_temp.u('b02')), false,
   'su presencia queda offline');

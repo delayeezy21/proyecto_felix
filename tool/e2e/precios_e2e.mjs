@@ -191,8 +191,11 @@ try {
   const myPays = await call('/rest/v1/payments?select=id,status,total,provider', { token: ownerA.token });
   check(myPays.json.length === 2 && myPays.json.every((p) => p.provider === 'simulated'),
     'el dueño A ve sus pagos, todos simulados');
+  // QA-F11-05 (HU8.6): sin filas de payments; sus liquidaciones por my_payouts.
   const vetPays = await call('/rest/v1/payments?select=id', { token: vet.token });
-  check(vetPays.json.length === 2, 'el vet ve solo los pagos de su visita (fase 6)');
+  const vetPayouts = await rpc('my_payouts', {}, vet.token);
+  check(vetPays.json.length === 0 && vetPayouts.json?.length === 2,
+    'el vet no lee payments y ve solo las liquidaciones de su visita (my_payouts)');
 
   // --- Otros roles no ven pagos ajenos ---------------------------------------------------------
   for (const [who, u] of [['el dueño B', ownerB], ['la fundación X', fundX]]) {

@@ -7,7 +7,7 @@ import { FakeProvider } from './fake.ts';
 import type { ProviderDeps, TitleVerificationInput } from './providers.ts';
 import { nameTokens, normalize } from './providers.ts';
 import { isKnownVetSchool, RulesProvider } from './rules.ts';
-import { readConfig, runProvider, runVerification } from './run.ts';
+import { readConfig, runProvider, runVerification, subjectGate } from './run.ts';
 
 const base: TitleVerificationInput = {
   displayName: 'Dra. Ana Prueba Ficticia',
@@ -155,4 +155,18 @@ test('runVerification: apagado → solo reglas; sin cuota externa → skipped', 
   const cfg = readConfig((k) => (k === 'TITLE_VERIFICATION_PROVIDER' ? 'colmevet' : undefined));
   const limited = await runVerification(base, cfg, noNet, false);
   assert.deepEqual(limited.map((r) => [r.source, r.outcome]), [['rules', 'match'], ['colmevet', 'skipped']]);
+});
+
+test('subjectGate (QA-F11-04): una cuenta bloqueada no se trata y ante la duda se falla cerrado', async () => {
+  let seen: string[] = [];
+  const ok = await subjectGate(async (ids) => {
+    seen = ids;
+    return { data: false, error: null };
+  }, ['a', 'a', 'b']);
+  assert.equal(ok, 'ok');
+  assert.deepEqual(seen, ['a', 'b']);
+  assert.equal(await subjectGate(async () => ({ data: true, error: null }), ['a']), 'blocked');
+  assert.equal(await subjectGate(async () => ({ data: null, error: { code: '42501' } }), ['a']), 'error');
+  assert.equal(await subjectGate(async () => ({ data: 'true', error: null }), ['a']), 'error');
+  assert.equal(await subjectGate(() => Promise.reject(new Error('red')), ['a']), 'error');
 });

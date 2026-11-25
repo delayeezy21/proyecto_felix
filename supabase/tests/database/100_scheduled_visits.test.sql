@@ -4,6 +4,10 @@
 -- expiración por cron.
 begin;
 select plan(111);
+-- QA-F11-02: la sesión en UTC+14 hace que current_date (y todo lo que dependa
+-- de la zona de la sesión) difiera casi siempre de la fecha de Chile, como
+-- entre las 21:00 y las 24:00 reales. La lógica debe usar America/Santiago.
+set local timezone = 'Etc/GMT-14';
 
 -- Fixtures ------------------------------------------------------------------
 insert into auth.users (id, email) values
@@ -77,8 +81,13 @@ insert into public.addresses (id, owner_id, label, street_text, details, commune
 create temp table t_ids (k text primary key, v uuid);
 create temp table t_ts (k text primary key, v timestamptz);
 grant all on t_ids, t_ts to authenticated;
--- T = mañana a la hora en punto (las horas de Chile son UTC−3/−4: alineadas).
-insert into t_ts values ('T', date_trunc('hour', now()) + interval '1 day');
+-- T = pasado mañana a las 09:00 de Chile (QA-F11-02). Antes era "mañana a esta
+-- hora": de 22:00 a 22:59 de Chile la reserva de T + 90 min (23:30) cruzaba la
+-- medianoche y el test fallaba. A las 09:00 caben todas las reservas del día
+-- (la última, T + 13 h = 22:00) a cualquier hora en que se corra, y T − 2 h
+-- queda siempre a más de 12 h (el plazo de confirmación es siempre 12 h).
+insert into t_ts values ('T',
+  ((now() at time zone 'America/Santiago')::date + 2 + time '09:00') at time zone 'America/Santiago');
 
 create function pg_temp.login(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims',
@@ -413,12 +422,13 @@ select is((pg_temp.mv(pg_temp.id('v1')) ->> 'paid')::boolean, true, 'el dueño v
 reset role;
 select pg_temp.login('00000000-0000-0000-0000-0000000009b1');
 set local role authenticated;
-select is((select count(*)::int from public.payments where visit_id = pg_temp.id('v1')), 2,
-  'el vet ve los pagos de su visita');
+select is((select count(*)::int from public.my_payouts() where visit_id = pg_temp.id('v1')), 2,
+  'el vet ve las liquidaciones de su visita (my_payouts, QA-F11-05)');
 reset role;
 select pg_temp.login('00000000-0000-0000-0000-0000000009b2');
 set local role authenticated;
-select is((select count(*)::int from public.payments), 0, 'otro vet no ve esos pagos');
+select is((select count(*)::int from public.payments) + (select count(*)::int from public.my_payouts()),
+  0, 'otro vet no ve esos pagos');
 reset role;
 select is((select string_agg(c.kind, ',' order by c.kind) from public.foundation_contributions c
            join public.payments p on p.id = c.payment_id where p.visit_id = pg_temp.id('v1')),
@@ -550,7 +560,7 @@ select is((select count(*)::int from public.available_vets('00000000-0000-0000-0
   'en su día libre el vet no aparece');
 select throws_ok($$ select pg_temp.book(pg_temp.q(), pg_temp.ts('D')) $$,
   '22023', 'El horario ya no está disponible. Elige otro.', 'no se reserva en un día libre');
-select throws_ok($$ select public.add_time_off(current_date + 3, current_date + 3) $$,
+select throws_ok($$ select public.add_time_off((now() at time zone 'America/Santiago')::date + 3, (now() at time zone 'America/Santiago')::date + 3) $$,
   '42501', null, 'un dueño no registra días libres');
 
 -- Punto de partida del vet ------------------------------------------------------
