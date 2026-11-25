@@ -14,7 +14,8 @@ from (values
   ('Clínica Demo 24h Centro', 'Santiago', 'Calle Ficticia 123', '+56 2 2000 0001'),
   ('Clínica Demo 24h Oriente', 'Providencia', 'Avenida Ejemplo 456', '+56 2 2000 0002'),
   ('Clínica Demo 24h Costa', 'Viña del Mar', 'Pasaje Prueba 789', '+56 32 200 0003'),
-  ('Clínica Demo 24h Sur', 'Concepción', 'Calle Demo 321', '+56 41 200 0004')
+  ('Clínica Demo 24h Sur', 'Concepción', 'Calle Demo 321', '+56 41 200 0004'),
+  ('Clínica Demo 24h San Miguel', 'San Miguel', 'Avenida Inventada 555', '+56 2 2000 0005')
 ) as t (name, commune, address, phone)
 join public.communes c on c.name = t.commune;
 

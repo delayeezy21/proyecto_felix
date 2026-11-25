@@ -52,7 +52,7 @@ class _OwnerLiveMapState extends ConsumerState<OwnerLiveMap> {
               key: const Key('live-map'),
               height: 240,
               child: map.buildMap(
-                center: loc?.point ?? GeoPoint.santiago,
+                center: loc?.point ?? GeoPoint.initial,
                 zoom: loc == null ? 11 : 15,
                 controller: _controller,
                 markers: [

@@ -11,7 +11,11 @@
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File tool\pc_web.ps1
 #>
-param([int]$Port = 3000)
+param(
+  [int]$Port = 3000,
+  # Centro inicial de los mapas (beta local: San Miguel, Santiago).
+  [string]$MapCenter = '-33.4970,-70.6510'
+)
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -32,4 +36,5 @@ Write-Host "Abriendo Chrome en http://localhost:$Port ..." -ForegroundColor Cyan
   '--dart-define=SUPABASE_URL=http://127.0.0.1:54321' `
   "--dart-define=SUPABASE_PUBLISHABLE_KEY=$($status.PUBLISHABLE_KEY)" `
   '--dart-define=MAP_PROVIDER=osm' `
+  "--dart-define=MAP_DEFAULT_CENTER=$MapCenter" `
   "--dart-define=GOOGLE_AUTH_ENABLED=$($google.ToString().ToLower())"

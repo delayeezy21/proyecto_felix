@@ -108,7 +108,7 @@ class VetProfile {
       (status == VetStatus.pending || status == VetStatus.rejected);
 }
 
-/// Solicitud pendiente en la cola del admin.
+/// Veterinario en la lista del admin (pendiente o ya revisado).
 @immutable
 class VetApplicationSummary {
   const new({
@@ -116,12 +116,16 @@ class VetApplicationSummary {
     required this.displayName,
     required this.submittedAt,
     this.university,
+    this.status = VetStatus.pending,
   });
 
   final String userId;
   final String displayName;
   final String? university;
-  final DateTime submittedAt;
+
+  /// Puede faltar en perfiles que nunca enviaron la solicitud.
+  final DateTime? submittedAt;
+  final VetStatus status;
 }
 
 /// Detalle completo de una solicitud para revisar.

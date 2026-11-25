@@ -53,6 +53,10 @@ abstract interface class VetRepository {
   // --- Admin ---
   Future<List<VetApplicationSummary>> pendingApplications();
 
+  /// Admin: veterinarios que enviaron su solicitud, por estado
+  /// (`null` = todos).
+  Future<List<VetApplicationSummary>> listVets({VetStatus? status});
+
   Future<VetApplicationDetail> applicationDetail(String vetId);
 
   /// Enlace temporal (60 s) para ver un documento.
@@ -372,10 +376,31 @@ class SupabaseVetRepository implements VetRepository {
           userId: r['user_id'] as String,
           displayName: r['display_name'] as String,
           university: r['university'] as String?,
-          submittedAt: _date(r['submitted_at'])!,
+          submittedAt: _date(r['submitted_at']),
         ),
     ];
   });
+
+  @override
+  Future<List<VetApplicationSummary>> listVets({VetStatus? status}) =>
+      _guard(() async {
+        var q = _client
+            .from('vet_profiles')
+            .select('user_id, display_name, university, submitted_at, status')
+            .not('submitted_at', 'is', null);
+        if (status != null) q = q.eq('status', status.name);
+        final rows = await q.order('display_name');
+        return [
+          for (final r in rows)
+            VetApplicationSummary(
+              userId: r['user_id'] as String,
+              displayName: r['display_name'] as String,
+              university: r['university'] as String?,
+              submittedAt: _date(r['submitted_at']),
+              status: VetStatus.parse(r['status'] as String?),
+            ),
+        ];
+      });
 
   @override
   Future<VetApplicationDetail> applicationDetail(String vetId) =>
