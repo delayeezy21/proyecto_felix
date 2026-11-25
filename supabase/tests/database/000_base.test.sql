@@ -69,7 +69,9 @@ select is_empty(
                               'my_deletion_request', 'list_my_retained_entries',
                               'request_retained_entry',
                               -- QA de la fase 11.
-                              'my_payouts', 'assert_subject_not_blocked') $$,
+                              'my_payouts', 'assert_subject_not_blocked',
+                              -- Re-QA db5f16c (políticas RLS del bloqueo).
+                              'admin_may_treat', 'folder_owner_blocked') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 

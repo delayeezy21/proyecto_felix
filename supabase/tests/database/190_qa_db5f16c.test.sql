@@ -2,12 +2,12 @@
 --   QA-F11-01: variantes de PII que no cubre 180 (N°, "nro.", puntos y
 --     paréntesis en el teléfono, "Depto.", salto de línea) y casos negativos
 --     clínicos (el número de la casa o del depto sueltos, nombres parecidos).
---   QA-F11-07 (abierto): el admin aprueba o anota a un vet bloqueado con
---     UPDATE directo a vet_profiles / vet_documents (sin pasar por la RPC).
---   QA-F11-08 (abierto, Bajo): "dpto 51" y "departamento 51" no se redactan.
--- Los casos de defectos abiertos van como todo(): no rompen la suite.
+--   QA-F11-07 (cerrado en 20261125150000): el admin no aprueba, anota ni
+--     revisa a un vet bloqueado con UPDATE directo a vet_profiles /
+--     vet_documents, ni lee o firma sus documentos (O-F11-h).
+--   QA-F11-08 (cerrado en 20261125150000): "dpto", "dpto." y "departamento".
 begin;
-select plan(17);
+select plan(22);
 
 create function pg_temp.u(k text) returns uuid language sql immutable as $$
   select ('00000000-0000-0000-0000-000000190' || k)::uuid $$;
@@ -43,9 +43,12 @@ select is(pg_temp.r('Microchip no leído; 15 ml de suero en 941 segundos.'),
   'Microchip no leído; 15 ml de suero en 941 segundos.',
   'cifras clínicas cortas no se confunden con microchip ni teléfono');
 
-select todo('QA-F11-08: otras abreviaturas de la unidad', 2);
 select is(pg_temp.r('Dejar en dpto 51.'), 'Dejar en [redactado].', 'depto como "dpto"');
 select is(pg_temp.r('Dejar en departamento 51.'), 'Dejar en [redactado].', 'depto como "departamento"');
+select is(pg_temp.r('Dejar en dpto. 51.'), 'Dejar en [redactado].', 'depto como "dpto."');
+select is(pg_temp.r('Derivar al departamento de cirugía; 51 mg; dpto. de imagen.'),
+  'Derivar al departamento de cirugía; 51 mg; dpto. de imagen.',
+  'negativo clínico: "departamento" o "dpto." sin el número del titular no se redactan');
 
 -- 2. QA-F11-07: el admin y un vet bloqueado ----------------------------------------
 set local session_replication_role = replica;
@@ -59,6 +62,8 @@ insert into public.vet_profiles (user_id, display_name, status, submitted_at) va
 insert into public.vet_documents (vet_id, kind, storage_path, mime, size_bytes) values
   (pg_temp.u('b01'), 'degree_certificate', pg_temp.u('b01') || '/t.pdf', 'application/pdf', 10),
   (pg_temp.u('b02'), 'degree_certificate', pg_temp.u('b02') || '/t.pdf', 'application/pdf', 10);
+insert into storage.objects (bucket_id, name) values
+  ('vet-documents', pg_temp.u('b01') || '/t.pdf'), ('vet-documents', pg_temp.u('b02') || '/t.pdf');
 insert into public.deletion_requests (user_id, role) values (pg_temp.u('b02'), 'vet');
 set local session_replication_role = origin;
 
@@ -72,13 +77,20 @@ select is(pg_temp.err(format($$ update public.vet_documents set review_status = 
 select is(pg_temp.err(format($$ update public.vet_profiles set review_notes = 'QA'
   where user_id = %L $$, pg_temp.u('b01'))), 'ok', 'control: el admin anota a un vet libre');
 
-select todo('QA-F11-07: el bloqueo no cubre el UPDATE directo del admin', 4);
 select is(pg_temp.err(format($$ update public.vet_profiles set status = 'approved', reviewed_at = now()
   where user_id = %L $$, pg_temp.u('b02'))), '42501', 'el admin no aprueba al vet bloqueado por UPDATE directo');
 select is(pg_temp.err(format($$ update public.vet_profiles set review_notes = 'QA'
   where user_id = %L $$, pg_temp.u('b02'))), '42501', 'el admin no anota al vet bloqueado por UPDATE directo');
 select is(pg_temp.err(format($$ update public.vet_documents set review_status = 'accepted'
   where vet_id = %L $$, pg_temp.u('b02'))), '42501', 'el admin no revisa los documentos del vet bloqueado');
+select is(pg_temp.err(format($$ select 1 from public.vet_documents where vet_id = %L $$, pg_temp.u('b02'))),
+  '42501', 'O-F11-h: el admin no lee los documentos del vet bloqueado');
+select is((select count(*)::int from public.vet_documents where vet_id = pg_temp.u('b01')), 1,
+  'control: el admin lee los documentos de un vet libre');
+select is((select array_agg((storage.foldername(name))[1] order by name) from storage.objects
+           where bucket_id = 'vet-documents'
+             and (storage.foldername(name))[1] in (pg_temp.u('b01')::text, pg_temp.u('b02')::text)),
+  array[pg_temp.u('b01')::text], 'O-F11-h: el admin no ve (ni firma) el título del vet bloqueado en Storage');
 reset role;
 select is((select status from public.vet_profiles where user_id = pg_temp.u('b02')), 'pending',
   'el vet bloqueado sigue pending');
