@@ -49,12 +49,17 @@ Future<String> _newRegistered(AppRole role) async {
   );
   final c = await _signIn(email);
   final profiles = SupabaseProfileRepository(c);
+  // QA-F11-06: el dueño exige comuna (sin ella el smoke fallaba).
+  final commune = role == AppRole.owner
+      ? (await c.from('communes').select('id').limit(1).single())['id'] as int
+      : null;
   await profiles.completeRegistration(
     role: role,
     displayName: 'Smoke ${role.name}',
     phone: null,
     legal: await profiles.fetchLegalVersions(),
     marketingConsent: true,
+    communeId: commune,
   );
   await c.dispose();
   return email;
