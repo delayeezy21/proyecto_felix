@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/pricing.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
@@ -120,7 +121,7 @@ class _QuotePanelState extends ConsumerState<QuotePanel> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 12,
               children: [
-                DropdownButtonFormField<String>(
+                AppDropdown<String>(
                   key: const Key('quote-pet'),
                   initialValue: _petId,
                   isExpanded: true,
@@ -138,7 +139,7 @@ class _QuotePanelState extends ConsumerState<QuotePanel> {
                   onChanged: (v) => _changed(() => _petId = v),
                   validator: (v) => v == null ? 'Elige la mascota' : null,
                 ),
-                DropdownButtonFormField<String>(
+                AppDropdown<String>(
                   key: const Key('quote-address'),
                   initialValue: _addressId,
                   isExpanded: true,
@@ -156,7 +157,7 @@ class _QuotePanelState extends ConsumerState<QuotePanel> {
                   onChanged: (v) => _changed(() => _addressId = v),
                   validator: (v) => v == null ? 'Elige la dirección' : null,
                 ),
-                DropdownButtonFormField<int>(
+                AppDropdown<int>(
                   key: const Key('quote-specialty'),
                   initialValue: _specialtyId,
                   isExpanded: true,
@@ -188,7 +189,7 @@ class _QuotePanelState extends ConsumerState<QuotePanel> {
                 // Se reconstruye cuando llega la fundación del perfil.
                 KeyedSubtree(
                   key: ValueKey('foundation-$foundationReady'),
-                  child: DropdownButtonFormField<String?>(
+                  child: AppDropdown<String?>(
                     key: const Key('quote-foundation'),
                     initialValue: _foundationId,
                     isExpanded: true,

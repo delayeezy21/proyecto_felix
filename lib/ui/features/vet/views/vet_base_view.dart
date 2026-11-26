@@ -7,6 +7,7 @@ import 'package:proyecto_felix/domain/models/address.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/geo.dart';
 import 'package:proyecto_felix/domain/models/visit.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
@@ -165,7 +166,7 @@ class _BaseFormState extends ConsumerState<_BaseForm> {
         const SizedBox(height: 16),
         KeyedSubtree(
           key: ValueKey('base-commune-$_communeId-${selectable.length}'),
-          child: DropdownButtonFormField<int>(
+          child: AppDropdown<int>(
             key: const Key('base-commune'),
             initialValue: selectable.any((c) => c.id == _communeId)
                 ? _communeId

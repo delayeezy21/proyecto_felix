@@ -25,6 +25,16 @@ from public.communes c
 where c.name = 'San Miguel'
   and not exists (select 1 from public.emergency_clinics e where e.name = 'Clínica Demo 24h San Miguel');
 
+-- Dr Boby atiende consultas agendadas: Medicina general y Vacunación y
+-- prevención (además de Urgencias). Sin especialidad general no aparece al
+-- agendar una consulta normal.
+insert into public.vet_specialties (vet_id, specialty_id)
+select u.id, sp.id
+from auth.users u, public.specialties sp
+where u.email = 'demo@felix.local'
+  and sp.name in ('Medicina general', 'Vacunación y prevención', 'Urgencias')
+on conflict do nothing;
+
 commit;
 
 -- Resumen

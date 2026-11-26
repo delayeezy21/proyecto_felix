@@ -11,6 +11,7 @@ import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
 import 'package:proyecto_felix/domain/models/visit.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
@@ -783,7 +784,7 @@ class _BlockDialogState extends State<_BlockDialog> {
         mainAxisSize: MainAxisSize.min,
         spacing: 12,
         children: [
-          DropdownButtonFormField<int>(
+          AppDropdown<int>(
             key: const Key('block-weekday'),
             initialValue: _weekday,
             decoration: const InputDecoration(labelText: 'Día'),
@@ -793,7 +794,7 @@ class _BlockDialogState extends State<_BlockDialog> {
             ],
             onChanged: (v) => setState(() => _weekday = v ?? 1),
           ),
-          DropdownButtonFormField<int>(
+          AppDropdown<int>(
             key: const Key('block-start'),
             initialValue: _start,
             decoration: const InputDecoration(labelText: 'Desde'),
@@ -803,7 +804,7 @@ class _BlockDialogState extends State<_BlockDialog> {
             ],
             onChanged: (v) => setState(() => _start = v ?? _start),
           ),
-          DropdownButtonFormField<int>(
+          AppDropdown<int>(
             key: const Key('block-end'),
             initialValue: _end,
             decoration: const InputDecoration(labelText: 'Hasta'),

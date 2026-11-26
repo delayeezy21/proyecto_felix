@@ -6,6 +6,7 @@ import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/address.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/geo.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
@@ -259,7 +260,7 @@ class _AddressFormState extends ConsumerState<_AddressForm> {
               // reconstruye con el valor nuevo.
               KeyedSubtree(
                 key: ValueKey('region-$_regionId'),
-                child: DropdownButtonFormField<int>(
+                child: AppDropdown<int>(
                   key: const Key('address-region'),
                   initialValue: _regionId,
                   isExpanded: true,
@@ -278,7 +279,7 @@ class _AddressFormState extends ConsumerState<_AddressForm> {
               const SizedBox(height: 16),
               KeyedSubtree(
                 key: ValueKey('commune-$_communeId'),
-                child: DropdownButtonFormField<int>(
+                child: AppDropdown<int>(
                   key: Key('address-commune-$_regionId'),
                   initialValue: selectable.any((c) => c.id == _communeId)
                       ? _communeId

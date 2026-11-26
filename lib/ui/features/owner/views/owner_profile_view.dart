@@ -5,6 +5,7 @@ import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/pricing.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
@@ -132,7 +133,7 @@ class _FoundationChoiceState extends ConsumerState<_FoundationChoice> {
               'van a esta fundación. Ella solo ve totales: nunca tu nombre ni '
               'tus datos.',
         ),
-        DropdownButtonFormField<String?>(
+        AppDropdown<String?>(
           key: const Key('profile-foundation'),
           initialValue: _selected,
           isExpanded: true,

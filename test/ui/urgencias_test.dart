@@ -274,7 +274,7 @@ void main() {
           .map((t) => t.key)
           .toList();
       expect(tiles, [const Key('clinic-c2'), const Key('clinic-c1')]);
-      await tester.pageBack();
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
 
       // Agendar: flujo agendado con la mascota y la dirección elegidas.
