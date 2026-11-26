@@ -198,6 +198,45 @@ void main() {
       );
     });
 
+    testWidgets('si el plan cambió, recotiza y pide confirmar otra vez', (
+      tester,
+    ) async {
+      visits.vets = [
+        AvailableVet(
+          vetId: 'v1',
+          displayName: 'Dra. Vera',
+          distanceKm: 3,
+          slots: [DateTime(2026, 11, 20, 10, 30)],
+        ),
+      ];
+      await openVisits(tester);
+      await tester.tap(find.byKey(const Key('visit-book')));
+      await tester.pumpAndSettle();
+      await pick(tester, const Key('book-pet'), 'Firulais · Perro');
+      await pick(tester, const Key('book-address'), 'Casa · Ñuñoa');
+      await pick(tester, const Key('book-specialty'), 'Medicina general');
+      await tester.tap(find.byKey(const Key('book-search')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('slot-v1-0')));
+      await tester.pumpAndSettle();
+      expect(quotes.requests, hasLength(1));
+      visits.nextFailure = const VisitFailure(
+        'Tu plan cambió desde la cotización (venció o se agotó el cupo de '
+        'preventivas). Vuelve a cotizar.',
+      );
+      await tester.ensureVisible(find.byKey(const Key('book-confirm')));
+      await tester.tap(find.byKey(const Key('book-confirm')));
+      await tester.pumpAndSettle();
+      expect(quotes.requests, hasLength(2), reason: 'recotiza sola');
+      expect(find.textContaining('Revisa el nuevo precio'), findsOneWidget);
+      expect(find.byKey(const Key('quote-breakdown')), findsOneWidget);
+      // Confirmar de nuevo reserva con la cotización nueva.
+      await tester.ensureVisible(find.byKey(const Key('book-confirm')));
+      await tester.tap(find.byKey(const Key('book-confirm')));
+      await tester.pumpAndSettle();
+      expect(visits.bookings, hasLength(1));
+    });
+
     testWidgets('cancelar dentro de las 2 h advierte el cargo', (tester) async {
       visits
         ..visits = [

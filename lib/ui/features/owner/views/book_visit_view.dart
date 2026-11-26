@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/data/providers.dart';
+import 'package:proyecto_felix/data/repositories/visit_repository.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/pricing.dart';
 import 'package:proyecto_felix/domain/models/visit.dart';
@@ -171,7 +172,24 @@ class _BookVisitViewState extends ConsumerState<BookVisitView> {
       );
       context.pushReplacement(AppRoutes.ownerVisit(visit.id));
     } on Object catch (e) {
-      if (mounted) setState(() => _error = friendlyError(e));
+      if (!mounted) return;
+      if (e is VisitFailure && e.message.startsWith('Tu plan cambió')) {
+        // Fase 10: el plan venció o se agotó el cupo de preventivas entre la
+        // cotización y la reserva. Se recotiza y el dueño confirma el nuevo
+        // precio (nunca se reserva con un precio que no vio).
+        final (vetId, slot) = (_vetId!, _slot!);
+        setState(() => _booking = false);
+        await _choose(vetId, slot);
+        if (mounted) {
+          setState(
+            () => _error =
+                'Tu plan cambió desde la cotización. Revisa el nuevo precio y '
+                'confirma otra vez.',
+          );
+        }
+      } else {
+        setState(() => _error = friendlyError(e));
+      }
     } finally {
       if (mounted) setState(() => _booking = false);
     }
