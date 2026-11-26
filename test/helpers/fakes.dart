@@ -29,6 +29,7 @@ import 'owner_fakes.dart';
 import 'pricing_fakes.dart';
 import 'privacy_fakes.dart';
 import 'rating_fakes.dart';
+import 'subscription_fakes.dart';
 import 'urgent_fakes.dart';
 import 'visit_fakes.dart';
 
@@ -37,6 +38,7 @@ export 'owner_fakes.dart';
 export 'pricing_fakes.dart';
 export 'privacy_fakes.dart';
 export 'rating_fakes.dart';
+export 'subscription_fakes.dart';
 export 'urgent_fakes.dart';
 export 'visit_fakes.dart';
 
@@ -245,6 +247,7 @@ Widget testApp({
   AppClock? clock,
   FakePrivacyRepository? privacy,
   FakeRatingRepository? ratings,
+  FakeSubscriptionRepository? subscriptions,
   Duration? Function(int retryCount, Object error)? retry,
   FakeFileSaver? fileSaver,
   AccountBlockedSignal? blockedSignal,
@@ -257,6 +260,9 @@ Widget testApp({
       privacy ?? FakePrivacyRepository(),
     ),
     fileSaverProvider.overrideWithValue(fileSaver ?? FakeFileSaver()),
+    subscriptionRepositoryProvider.overrideWithValue(
+      subscriptions ?? FakeSubscriptionRepository(),
+    ),
     ratingRepositoryProvider.overrideWithValue(
       ratings ?? FakeRatingRepository(),
     ),

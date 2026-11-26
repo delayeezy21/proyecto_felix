@@ -13,6 +13,7 @@ abstract final class AppRoutes {
   static const ownerPetNew = '/owner/pets/new';
   static const ownerAddressNew = '/owner/addresses/new';
   static const ownerProfile = '/owner/profile';
+  static const ownerPlan = '/owner/plan';
   static String ownerPet(String id) => '/owner/pets/$id';
   static String ownerAddress(String id) => '/owner/addresses/$id';
   static String ownerPetRecord(String id) => '/owner/pets/$id/record';
