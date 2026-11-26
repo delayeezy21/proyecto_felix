@@ -196,13 +196,15 @@ void main() {
       }),
       'my_ratings_received' => json([
         {
-          'visit_id': 'vis1',
           'rater_role': 'owner',
           'stars': 5,
           'comment': null,
           'comment_hidden': true,
-          'published_at': '2026-11-25T15:00:00Z',
+          'published_on': '2026-11-25',
         },
+      ]),
+      'vet_rating_summaries' => json([
+        {'vet_id': 'v2', 'rating_avg': 4.5, 'rating_count': 4},
       ]),
       _ => json(null),
     };
@@ -212,10 +214,16 @@ void main() {
     expect(s.cancelCount30d, 2);
     final list = await r.received();
     expect(list.single.commentHidden, isTrue);
+    expect(list.single.publishedAt, DateTime(2026, 11, 25));
     expect(calls[1].$2, {'p_limit': 50});
-    expect(await r.vetSummary('v1'), isNull);
-    expect(calls.last.$1, 'vet_rating_summary');
-    expect(calls.last.$2, {'p_vet_id': 'v1'});
+    // O-F9-b: dos pedidos simultáneos van en una sola llamada por lotes.
+    final both = await Future.wait([r.vetSummary('v1'), r.vetSummary('v2')]);
+    expect(both.first, isNull);
+    expect(both.last?.ratingAvg, 4.5);
+    expect(calls.where((c) => c.$1 == 'vet_rating_summaries'), hasLength(1));
+    expect(calls.last.$2, {
+      'p_vet_ids': ['v1', 'v2'],
+    });
   });
 
   test('admin: lista, oculta y alertas', () async {
