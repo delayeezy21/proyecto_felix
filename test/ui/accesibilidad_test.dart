@@ -128,10 +128,7 @@ void main() {
           brightness: brightness,
         );
         await expectAccessible(tester);
-        final tab = find.widgetWithText(Tab, 'Veterinarios');
-        await tester.ensureVisible(tab);
-        await tester.tap(tab);
-        await tester.pumpAndSettle();
+        await openAdminSection(tester, 'Veterinarios');
         await tester.tap(find.byKey(const Key('application-v1')));
         await tester.pumpAndSettle();
         await expectAccessible(tester);
@@ -174,10 +171,7 @@ void main() {
       testApp(auth: auth, profiles: profiles, vets: vets),
     );
     await tester.pumpAndSettle();
-    final tab = find.widgetWithText(Tab, 'Veterinarios');
-    await tester.ensureVisible(tab);
-    await tester.tap(tab);
-    await tester.pumpAndSettle();
+    await openAdminSection(tester, 'Veterinarios');
     await tester.tap(find.byKey(const Key('application-v1')));
     await tester.pumpAndSettle();
     final notes = tester.widget<TextField>(

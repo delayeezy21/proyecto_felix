@@ -31,10 +31,7 @@ void main() {
       testApp(auth: auth, profiles: profiles, catalog: catalog),
     );
     await tester.pumpAndSettle();
-    final tabFinder = find.widgetWithText(Tab, tab);
-    await tester.ensureVisible(tabFinder);
-    await tester.tap(tabFinder);
-    await tester.pumpAndSettle();
+    await openAdminSection(tester, tab);
   }
 
   testWidgets('el admin llega a su panel con los catálogos', (tester) async {

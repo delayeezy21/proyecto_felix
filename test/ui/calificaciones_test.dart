@@ -439,10 +439,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.widgetWithText(Tab, tab));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(Tab, tab));
-      await tester.pumpAndSettle();
+      await openAdminSection(tester, tab);
     }
 
     testWidgets('lista calificaciones y oculta o muestra el comentario', (

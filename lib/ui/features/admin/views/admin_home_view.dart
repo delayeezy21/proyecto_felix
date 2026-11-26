@@ -9,83 +9,189 @@ import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
 import 'package:proyecto_felix/ui/features/admin/view_models/admin_catalog_providers.dart';
+import 'package:proyecto_felix/ui/features/admin/views/admin_clients_tab.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_foundations_tab.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_ratings_tab.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_vet_review_view.dart';
 import 'package:proyecto_felix/ui/features/admin/views/admin_visits_tab.dart';
 import 'package:proyecto_felix/ui/features/auth/view_models/auth_controller.dart';
 
-/// Panel del administrador: catálogos, tarifas, parámetros, clínicas 24 h y
-/// fundaciones, y un resumen agregado de visitas (sin datos personales).
-class AdminHomeView extends ConsumerWidget {
+/// Secciones del panel, agrupadas para el menú vertical.
+enum AdminSection {
+  vets('Veterinarios', Icons.verified_user_outlined, 'Personas'),
+  clients('Clientes', Icons.people_alt_outlined, 'Personas'),
+  visits('Visitas', Icons.event_note_outlined, 'Operación'),
+  ratings('Calificaciones', Icons.star_outline, 'Operación'),
+  cancelAlerts(
+    'Alertas de cancelación',
+    Icons.event_busy_outlined,
+    'Operación',
+  ),
+  species('Especies', Icons.pets, 'Catálogos y precios'),
+  specialties(
+    'Especialidades',
+    Icons.medical_services_outlined,
+    'Catálogos y precios',
+  ),
+  tariffs('Tarifas', Icons.sell_outlined, 'Catálogos y precios'),
+  pricing('Parámetros', Icons.tune, 'Catálogos y precios'),
+  clinics('Clínicas 24 h', Icons.local_hospital_outlined, 'Red de apoyo'),
+  foundations('Fundaciones', Icons.volunteer_activism_outlined, 'Red de apoyo');
+
+  new(this.label, this.icon, this.group);
+
+  final String label;
+  final IconData icon;
+  final String group;
+
+  Widget get body => switch (this) {
+    vets => const AdminVetApplicationsTab(),
+    clients => const AdminClientsTab(),
+    visits => const AdminVisitsTab(),
+    ratings => const AdminRatingsTab(),
+    cancelAlerts => const AdminCancelAlertsTab(),
+    species => const _CatalogTab(kind: CatalogKind.species),
+    specialties => const _CatalogTab(kind: CatalogKind.specialties),
+    tariffs => const _TariffsTab(),
+    pricing => const _PricingTab(),
+    clinics => const _ClinicsTab(),
+    foundations => const AdminFoundationsTab(),
+  };
+}
+
+/// Ancho desde el que el menú queda fijo a la izquierda (web y escritorio).
+const adminSidebarBreakpoint = 900.0;
+
+/// Panel del administrador con un menú vertical: fijo a la izquierda en
+/// pantallas anchas (web, Windows) y en un panel lateral en teléfonos.
+class AdminHomeView extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return DefaultTabController(
-      length: 10,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Administración'),
-          actions: [
-            IconButton(
-              key: const Key('sign-out'),
-              tooltip: 'Cerrar sesión',
-              icon: const Icon(Icons.logout),
-              onPressed: () =>
-                  ref.read(authControllerProvider.notifier).signOut(),
-            ),
-          ],
-          bottom: const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(
-                icon: Icon(Icons.verified_user_outlined),
-                text: 'Veterinarios',
+  ConsumerState<AdminHomeView> createState() => _AdminHomeViewState();
+}
+
+class _AdminHomeViewState extends ConsumerState<AdminHomeView> {
+  AdminSection _section = AdminSection.vets;
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= adminSidebarBreakpoint;
+    final menu = _AdminMenu(
+      selected: _section,
+      onSelect: (s) {
+        setState(() => _section = s);
+        if (!wide) Navigator.of(context).maybePop();
+      },
+    );
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Administración'),
+        leading: wide
+            ? null
+            : Builder(
+                builder: (context) => IconButton(
+                  key: const Key('admin-menu'),
+                  tooltip: 'Menú',
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
               ),
-              Tab(icon: Icon(Icons.pets), text: 'Especies'),
-              Tab(
-                icon: Icon(Icons.medical_services_outlined),
-                text: 'Especialidades',
+        bottom: wide
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(28),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _section.label,
+                      key: const Key('admin-section-title'),
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                ),
               ),
-              Tab(icon: Icon(Icons.sell_outlined), text: 'Tarifas'),
-              Tab(icon: Icon(Icons.tune), text: 'Parámetros'),
-              Tab(
-                icon: Icon(Icons.local_hospital_outlined),
-                text: 'Clínicas 24 h',
-              ),
-              Tab(
-                icon: Icon(Icons.volunteer_activism_outlined),
-                text: 'Fundaciones',
-              ),
-              Tab(icon: Icon(Icons.event_note_outlined), text: 'Visitas'),
-              Tab(icon: Icon(Icons.star_outline), text: 'Calificaciones'),
-              Tab(
-                icon: Icon(Icons.event_busy_outlined),
-                text: 'Alertas de cancelación',
-              ),
-            ],
+        actions: [
+          IconButton(
+            key: const Key('sign-out'),
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout),
+            onPressed: () =>
+                ref.read(authControllerProvider.notifier).signOut(),
           ),
-        ),
-        body: const TabBarView(
-          children: [
-            AdminVetApplicationsTab(),
-            _CatalogTab(kind: CatalogKind.species),
-            _CatalogTab(kind: CatalogKind.specialties),
-            _TariffsTab(),
-            _PricingTab(),
-            _ClinicsTab(),
-            AdminFoundationsTab(),
-            AdminVisitsTab(),
-            AdminRatingsTab(),
-            AdminCancelAlertsTab(),
-          ],
-        ),
+        ],
       ),
+      drawer: wide ? null : Drawer(child: SafeArea(child: menu)),
+      body: wide
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 260,
+                  child: Material(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    child: menu,
+                  ),
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: KeyedSubtree(
+                    key: ValueKey(_section),
+                    child: _section.body,
+                  ),
+                ),
+              ],
+            )
+          : KeyedSubtree(key: ValueKey(_section), child: _section.body),
     );
   }
 }
 
+class _AdminMenu extends StatelessWidget {
+  const new({required this.selected, required this.onSelect});
+
+  final AdminSection selected;
+  final ValueChanged<AdminSection> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    String? group;
+    return SingleChildScrollView(
+      key: const Key('admin-nav'),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final s in AdminSection.values) ...[
+            if (s.group != group) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                child: Text(
+                  group = s.group,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+            ListTile(
+              key: Key('admin-nav-${s.label}'),
+              leading: Icon(s.icon),
+              title: Text(s.label),
+              selected: s == selected,
+              selectedTileColor: theme.colorScheme.secondaryContainer,
+              selectedColor: theme.colorScheme.onSecondaryContainer,
+              onTap: () => onSelect(s),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 // ---------------------------------------------------------------------------
 // Utilidades
 // ---------------------------------------------------------------------------

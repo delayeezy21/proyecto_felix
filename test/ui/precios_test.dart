@@ -376,10 +376,7 @@ void main() {
         testApp(auth: auth, profiles: profiles, foundations: foundations),
       );
       await tester.pumpAndSettle();
-      final tab = find.widgetWithText(Tab, 'Fundaciones');
-      await tester.ensureVisible(tab);
-      await tester.tap(tab);
-      await tester.pumpAndSettle();
+      await openAdminSection(tester, 'Fundaciones');
     }
 
     testWidgets('agrega una fundación y la marca por defecto', (tester) async {

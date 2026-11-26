@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:proyecto_felix/data/repositories/admin_client_repository.dart';
 import 'package:proyecto_felix/data/repositories/auth_repository.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/clinical_repository.dart';
@@ -105,4 +106,8 @@ final subscriptionRepositoryProvider = Provider<SubscriptionRepository>(
 
 final liveLocationServiceProvider = Provider<LiveLocationService>(
   (ref) => SupabaseLiveLocationService(ref.watch(supabaseClientProvider)),
+);
+
+final adminClientRepositoryProvider = Provider<AdminClientRepository>(
+  (ref) => SupabaseAdminClientRepository(ref.watch(supabaseClientProvider)),
 );

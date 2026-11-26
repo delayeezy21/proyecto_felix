@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:proyecto_felix/data/maps/geocoding_adapter.dart';
+import 'package:proyecto_felix/data/repositories/admin_client_repository.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/clinical_repository.dart';
 import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
@@ -22,6 +23,7 @@ String friendlyError(Object error) => switch (error) {
   PrivacyFailure(:final message) => message,
   RatingFailure(:final message) => message,
   SubscriptionFailure(:final message) => message,
+  AdminClientFailure(:final message) => message,
   AccountBlockedException(:final message) => message,
   _ => 'No se pudo completar la acción. Inténtalo de nuevo.',
 };

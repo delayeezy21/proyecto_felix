@@ -398,10 +398,7 @@ void main() {
         testApp(auth: auth, profiles: profiles, visits: visits),
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.widgetWithText(Tab, 'Visitas'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(Tab, 'Visitas'));
-      await tester.pumpAndSettle();
+      await openAdminSection(tester, 'Visitas');
       expect(
         find.byKey(const Key('admin-visits-scheduled-completed')),
         findsOneWidget,

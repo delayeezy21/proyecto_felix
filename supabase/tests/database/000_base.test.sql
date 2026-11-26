@@ -79,7 +79,9 @@ select is_empty(
                               'admin_review_cancel_alert',
                               -- Fase 10 (suscripciones).
                               'subscribe', 'set_subscription_pets', 'cancel_subscription',
-                              'my_subscription') $$,
+                              'my_subscription',
+                              -- Fase 12 (clientes en el admin).
+                              'admin_list_owners', 'admin_owner_detail') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 

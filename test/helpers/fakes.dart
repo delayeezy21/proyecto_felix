@@ -24,6 +24,7 @@ import 'package:proyecto_felix/domain/models/geo.dart';
 import 'package:proyecto_felix/domain/models/pet.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
 
+import 'admin_client_fakes.dart';
 import 'clinical_fakes.dart';
 import 'owner_fakes.dart';
 import 'pricing_fakes.dart';
@@ -33,6 +34,7 @@ import 'subscription_fakes.dart';
 import 'urgent_fakes.dart';
 import 'visit_fakes.dart';
 
+export 'admin_client_fakes.dart';
 export 'clinical_fakes.dart';
 export 'owner_fakes.dart';
 export 'pricing_fakes.dart';
@@ -248,6 +250,7 @@ Widget testApp({
   FakePrivacyRepository? privacy,
   FakeRatingRepository? ratings,
   FakeSubscriptionRepository? subscriptions,
+  FakeAdminClientRepository? adminClients,
   Duration? Function(int retryCount, Object error)? retry,
   FakeFileSaver? fileSaver,
   AccountBlockedSignal? blockedSignal,
@@ -260,6 +263,9 @@ Widget testApp({
       privacy ?? FakePrivacyRepository(),
     ),
     fileSaverProvider.overrideWithValue(fileSaver ?? FakeFileSaver()),
+    adminClientRepositoryProvider.overrideWithValue(
+      adminClients ?? FakeAdminClientRepository(),
+    ),
     subscriptionRepositoryProvider.overrideWithValue(
       subscriptions ?? FakeSubscriptionRepository(),
     ),

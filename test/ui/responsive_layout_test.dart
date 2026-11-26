@@ -184,10 +184,7 @@ void main() {
           'Clínicas 24 h',
           'Veterinarios',
         ]) {
-          final tabFinder = find.widgetWithText(Tab, tab);
-          await tester.ensureVisible(tabFinder);
-          await tester.tap(tabFinder);
-          await tester.pumpAndSettle();
+          await openAdminSection(tester, tab);
         }
 
         await tester.tap(find.byKey(const Key('application-v1')));
