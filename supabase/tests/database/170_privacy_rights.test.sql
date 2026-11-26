@@ -274,8 +274,8 @@ select is((select count(*)::int from public.payments) + (select count(*)::int fr
   0, 'la fundación no ve pagos ni aportes de los dueños');
 insert into t_tot select * from public.foundation_summary(12);
 select is((select sum(total)::int from t_tot), 2620, 'la fundación solo ve sus totales mensuales');
-select ok(to_regclass('public.subscriptions') is null,
-  'aún no hay planes (fase 10): no hay plan de dueño que exponer');
+select is((select count(*)::int from public.subscriptions) + (select count(*)::int from public.subscription_pets), 0,
+  'fase 10: la fundación no ve suscripciones ni mascotas asociadas');
 
 -- 5. Solicitud de borrado: acuse, bloqueo y sesiones (HU8.2, P2) ------------------
 select pg_temp.login('d01');

@@ -6,6 +6,7 @@ import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
 import 'package:proyecto_felix/data/repositories/pricing_repository.dart';
 import 'package:proyecto_felix/data/repositories/privacy_repository.dart';
 import 'package:proyecto_felix/data/repositories/rating_repository.dart';
+import 'package:proyecto_felix/data/repositories/subscription_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/data/repositories/visit_repository.dart';
 
@@ -20,6 +21,7 @@ String friendlyError(Object error) => switch (error) {
   ClinicalFailure(:final message) => message,
   PrivacyFailure(:final message) => message,
   RatingFailure(:final message) => message,
+  SubscriptionFailure(:final message) => message,
   AccountBlockedException(:final message) => message,
   _ => 'No se pudo completar la acción. Inténtalo de nuevo.',
 };

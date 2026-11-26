@@ -69,6 +69,9 @@ class Quote {
     this.maxServicePrice,
     this.maxTotal,
     this.maxDistanceKm,
+    this.planName,
+    this.isPreventive = false,
+    this.planSubsidy = 0,
   });
 
   factory fromJson(Map<String, dynamic> j) => Quote(
@@ -91,6 +94,12 @@ class Quote {
     maxServicePrice: (j['max_service_price'] as num?)?.toInt(),
     maxTotal: (j['max_total'] as num?)?.toInt(),
     maxDistanceKm: (j['max_distance_km'] as num?)?.toDouble(),
+    planName: switch (j['plan']) {
+      final Map<dynamic, dynamic> p => p['name'] as String?,
+      _ => null,
+    },
+    isPreventive: j['is_preventive'] as bool? ?? false,
+    planSubsidy: (j['plan_subsidy'] as num?)?.toInt() ?? 0,
   );
 
   final String id;
@@ -117,6 +126,12 @@ class Quote {
   final int? maxServicePrice;
   final int? maxTotal;
   final double? maxDistanceKm;
+
+  // Fase 10: plan aplicado (null sin plan), visita preventiva incluida y lo
+  // que Felix cubre por el plan (el vet cobra la tarifa de lista).
+  final String? planName;
+  final bool isPreventive;
+  final int planSubsidy;
 
   /// La distancia solo se conoce cuando hay un vet (fase 6 / 8).
   bool get distancePending => distanceKm == null;

@@ -76,7 +76,10 @@ select is_empty(
                               'rate_visit', 'visit_rating_status', 'my_ratings_received',
                               'my_rating_summary', 'vet_rating_summary', 'admin_list_ratings',
                               'admin_set_rating_hidden', 'admin_list_cancel_alerts',
-                              'admin_review_cancel_alert') $$,
+                              'admin_review_cancel_alert',
+                              -- Fase 10 (suscripciones).
+                              'subscribe', 'set_subscription_pets', 'cancel_subscription',
+                              'my_subscription') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 

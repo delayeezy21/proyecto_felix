@@ -47,8 +47,26 @@ class QuoteBreakdown extends StatelessWidget {
                 q.distanceSurcharge,
                 key: const Key('quote-distance'),
               ),
+            // Con plan, el urgente sin recargo viene en 0 (sin plan nunca).
+            if (q.mode == VisitMode.urgent &&
+                q.planName != null &&
+                q.urgentSurcharge == 0)
+              _TextLine(
+                'Recargo por urgencia',
+                'Sin recargo con tu plan ${q.planName}',
+                key: const Key('quote-urgent-waived'),
+              ),
             if (q.discount > 0)
-              _Line('Descuento', -q.discount, key: const Key('quote-discount')),
+              _Line(
+                switch ((q.planName, q.isPreventive)) {
+                  (final String plan, true) =>
+                    'Preventiva incluida en tu plan $plan',
+                  (final String plan, false) => 'Descuento de tu plan $plan',
+                  _ => 'Descuento',
+                },
+                -q.discount,
+                key: const Key('quote-discount'),
+              ),
             const Divider(height: 24),
             _Line(
               'Precio del servicio',
@@ -92,6 +110,13 @@ class QuoteBreakdown extends StatelessWidget {
               q.foundationShare + q.extraDonation,
               key: const Key('quote-foundation'),
             ),
+            // El vet cobra la tarifa de lista: la diferencia la pone Felix.
+            if (q.planSubsidy > 0)
+              _Line(
+                'Cubierto por Felix (tu plan)',
+                -q.planSubsidy,
+                key: const Key('quote-plan-subsidy'),
+              ),
             const SizedBox(height: 12),
             Text(
               '${frozen ? 'Precio congelado al reservar.' : 'Precio calculado '

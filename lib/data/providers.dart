@@ -7,6 +7,7 @@ import 'package:proyecto_felix/data/repositories/pricing_repository.dart';
 import 'package:proyecto_felix/data/repositories/privacy_repository.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
 import 'package:proyecto_felix/data/repositories/rating_repository.dart';
+import 'package:proyecto_felix/data/repositories/subscription_repository.dart';
 import 'package:proyecto_felix/data/repositories/urgent_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/data/repositories/visit_repository.dart';
@@ -96,6 +97,10 @@ final urgentRepositoryProvider = Provider<UrgentRepository>(
 
 final ratingRepositoryProvider = Provider<RatingRepository>(
   (ref) => SupabaseRatingRepository(ref.watch(supabaseClientProvider)),
+);
+
+final subscriptionRepositoryProvider = Provider<SubscriptionRepository>(
+  (ref) => SupabaseSubscriptionRepository(ref.watch(supabaseClientProvider)),
 );
 
 final liveLocationServiceProvider = Provider<LiveLocationService>(

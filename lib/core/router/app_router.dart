@@ -23,6 +23,7 @@ import 'package:proyecto_felix/ui/features/owner/views/owner_home_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_profile_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/owner_visit_view.dart';
 import 'package:proyecto_felix/ui/features/owner/views/pet_form_view.dart';
+import 'package:proyecto_felix/ui/features/owner/views/subscription_view.dart';
 import 'package:proyecto_felix/ui/features/privacy/views/account_blocked_view.dart';
 import 'package:proyecto_felix/ui/features/privacy/views/privacy_policy_view.dart';
 import 'package:proyecto_felix/ui/features/privacy/views/privacy_view.dart';
@@ -136,6 +137,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'profile',
             builder: (context, state) => const OwnerProfileView(),
+          ),
+          GoRoute(
+            path: 'plan',
+            builder: (context, state) => const SubscriptionView(),
           ),
           GoRoute(
             path: 'addresses/new',
