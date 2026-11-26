@@ -45,7 +45,7 @@ class AddressPicker extends ConsumerStatefulWidget {
 
 class _AddressPickerState extends ConsumerState<AddressPicker> {
   // El mapa se crea una vez; luego la cámara se mueve con el controlador.
-  late final GeoPoint _initialCenter = widget.point ?? GeoPoint.santiago;
+  late final GeoPoint _initialCenter = widget.point ?? GeoPoint.initial;
 
   void _select(GeocodingResult r) {
     widget.street.text = r.label;

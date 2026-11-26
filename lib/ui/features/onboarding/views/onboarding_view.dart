@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/validators.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
@@ -318,7 +319,7 @@ class _RegionCommunePicker extends ConsumerWidget {
 
     return Column(
       children: [
-        DropdownButtonFormField<int>(
+        AppDropdown<int>(
           key: const Key('onboarding-region'),
           initialValue: regionId,
           isExpanded: true,
@@ -334,7 +335,7 @@ class _RegionCommunePicker extends ConsumerWidget {
           validator: (v) => v == null ? 'Elige tu región' : null,
         ),
         const SizedBox(height: 16),
-        DropdownButtonFormField<int>(
+        AppDropdown<int>(
           // La key cambia con la región para reiniciar la selección.
           key: Key('onboarding-commune-$regionId'),
           initialValue: communeId,

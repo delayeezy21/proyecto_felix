@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/pet.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
@@ -231,7 +232,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
                     (v ?? '').trim().isEmpty ? 'Escribe el nombre' : null,
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<int>(
+              AppDropdown<int>(
                 key: const Key('pet-species'),
                 initialValue: _speciesId,
                 isExpanded: true,
@@ -249,7 +250,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
                 validator: (v) => v == null ? 'Elige la especie' : null,
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<int?>(
+              AppDropdown<int?>(
                 // La key cambia con la especie para reiniciar la raza.
                 key: Key('pet-breed-$_speciesId'),
                 initialValue: _breedId,
@@ -291,7 +292,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<int?>(
+                    child: AppDropdown<int?>(
                       key: const Key('pet-birth-year'),
                       initialValue: _birthYear,
                       isExpanded: true,
@@ -316,7 +317,7 @@ class _PetFormState extends ConsumerState<_PetForm> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: DropdownButtonFormField<int?>(
+                    child: AppDropdown<int?>(
                       key: Key('pet-birth-month-$_birthYear'),
                       initialValue: _birthMonth,
                       isExpanded: true,

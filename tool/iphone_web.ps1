@@ -20,7 +20,9 @@ param(
   [string]$Ip = '',
   [string]$DemoEmail = 'demo@felix.local',
   [string]$DemoPassword = 'Felix2026',
-  [string]$AdminEmail = 'admin@felix.local'
+  [string]$AdminEmail = 'admin@felix.local',
+  # Centro inicial de los mapas (beta local: San Miguel, Santiago).
+  [string]$MapCenter = '-33.4970,-70.6510'
 )
 # Continue: en PowerShell 5.1, la salida stderr de comandos nativos (npx, flutter)
 # se convierte en excepción con 'Stop'. Los errores se validan a mano con throw.
@@ -55,7 +57,8 @@ Paso 3 'Compilando la app web (tarda ~1-2 min)...'
 & flutter build web --release `
   "--dart-define=SUPABASE_URL=$apiUrl" `
   "--dart-define=SUPABASE_PUBLISHABLE_KEY=$($status.PUBLISHABLE_KEY)" `
-  '--dart-define=MAP_PROVIDER=osm'
+  '--dart-define=MAP_PROVIDER=osm' `
+  "--dart-define=MAP_DEFAULT_CENTER=$MapCenter"
 if ($LASTEXITCODE -ne 0) { throw 'Falló la compilación web.' }
 
 Paso 4 "Creando usuarios de prueba (si no existen)..."

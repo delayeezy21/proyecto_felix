@@ -383,7 +383,7 @@ void main() {
       expect(find.text('Versión vigente: p-2'), findsOneWidget);
       expect(privacy.noticeViews, 1);
 
-      await tester.pageBack();
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('privacy-notice')), findsNothing);
     });

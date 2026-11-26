@@ -662,6 +662,15 @@ class FakeVetRepository implements VetRepository {
   @override
   Future<List<VetApplicationSummary>> pendingApplications() async => pending;
 
+  /// Vets ya revisados (aprobados, rechazados o suspendidos) para listVets.
+  List<VetApplicationSummary> reviewed = [];
+
+  @override
+  Future<List<VetApplicationSummary>> listVets({VetStatus? status}) async => [
+    for (final v in [...pending, ...reviewed])
+      if (status == null || v.status == status) v,
+  ];
+
   /// Resultados de la verificación asistida que devuelve applicationDetail.
   List<TitleVerification> verifications = [];
 

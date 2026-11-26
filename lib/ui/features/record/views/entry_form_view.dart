@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/clinical.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
@@ -159,7 +160,7 @@ class _EntryFormViewState extends ConsumerState<EntryFormView> {
             if (!correcting && kinds.length > 1)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: DropdownButtonFormField<EntryKind>(
+                child: AppDropdown<EntryKind>(
                   key: const Key('entry-kind'),
                   initialValue: _kind,
                   decoration: const InputDecoration(labelText: 'Tipo'),

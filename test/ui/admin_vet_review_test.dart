@@ -103,6 +103,51 @@ void main() {
     expect(find.text('No hay solicitudes pendientes.'), findsOneWidget);
   });
 
+  testWidgets('"Aprobados" lista al vet aprobado y su perfil es de solo '
+      'lectura', (tester) async {
+    vets
+      ..pending = []
+      ..reviewed = [
+        VetApplicationSummary(
+          userId: 'v1',
+          displayName: 'Dr Boby',
+          university: 'utem',
+          submittedAt: DateTime(2026, 11, 16),
+          status: VetStatus.approved,
+        ),
+      ]
+      ..profile = VetProfile(
+        userId: 'v1',
+        displayName: 'Dr Boby',
+        status: VetStatus.approved,
+        university: 'utem',
+        graduationYear: 2016,
+        submittedAt: DateTime(2026, 11, 16),
+      );
+    tester.view
+      ..physicalSize = const Size(1000, 2400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      testApp(auth: auth, profiles: profiles, vets: vets, opener: opener),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No hay solicitudes pendientes.'), findsOneWidget);
+
+    await tester.tap(find.text('Aprobados'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dr Boby'), findsOneWidget);
+    expect(find.textContaining('Aprobado · utem'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('application-v1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Perfil del veterinario'), findsOneWidget);
+    expect(find.text('Universidad: utem'), findsOneWidget);
+    expect(find.text('Estado: Aprobado'), findsOneWidget);
+    expect(find.byKey(const Key('review-approve')), findsNothing);
+    expect(find.byKey(const Key('review-reject')), findsNothing);
+  });
+
   testWidgets('rechazar exige un motivo', (tester) async {
     await openReview(tester);
     await tap(tester, 'review-reject');

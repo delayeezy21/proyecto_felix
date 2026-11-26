@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/validators.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/info_banner.dart';
@@ -721,7 +722,7 @@ class _ClinicDialogState extends ConsumerState<_ClinicDialog> {
                   decoration: const InputDecoration(labelText: 'Nombre'),
                   validator: Validators.displayName,
                 ),
-                DropdownButtonFormField<int>(
+                AppDropdown<int>(
                   key: const Key('clinic-region'),
                   initialValue: _regionId,
                   isExpanded: true,
@@ -736,7 +737,7 @@ class _ClinicDialogState extends ConsumerState<_ClinicDialog> {
                   }),
                   validator: (v) => v == null ? 'Elige la región' : null,
                 ),
-                DropdownButtonFormField<int>(
+                AppDropdown<int>(
                   key: Key('clinic-commune-$_regionId'),
                   initialValue: _communeId,
                   isExpanded: true,

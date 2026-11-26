@@ -7,6 +7,7 @@ import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
 import 'package:proyecto_felix/domain/models/pricing.dart';
 import 'package:proyecto_felix/domain/models/visit.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
@@ -222,7 +223,7 @@ class _BookVisitViewState extends ConsumerState<BookVisitView> {
               // preseleccionada.
               KeyedSubtree(
                 key: ValueKey('pet-$petReady'),
-                child: DropdownButtonFormField<String>(
+                child: AppDropdown<String>(
                   key: const Key('book-pet'),
                   initialValue: petReady ? _petId : null,
                   isExpanded: true,
@@ -243,7 +244,7 @@ class _BookVisitViewState extends ConsumerState<BookVisitView> {
               ),
               KeyedSubtree(
                 key: ValueKey('address-$addressReady'),
-                child: DropdownButtonFormField<String>(
+                child: AppDropdown<String>(
                   key: const Key('book-address'),
                   initialValue: addressReady ? _addressId : null,
                   isExpanded: true,
@@ -262,7 +263,7 @@ class _BookVisitViewState extends ConsumerState<BookVisitView> {
                   validator: (v) => v == null ? 'Elige la dirección' : null,
                 ),
               ),
-              DropdownButtonFormField<int>(
+              AppDropdown<int>(
                 key: const Key('book-specialty'),
                 initialValue: _specialtyId,
                 isExpanded: true,

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/core/router/routes.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/catalog.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/catalog_providers.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
@@ -95,7 +96,7 @@ class _UrgentRequestViewState extends ConsumerState<UrgentRequestView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,
             children: [
-              DropdownButtonFormField<String>(
+              AppDropdown<String>(
                 key: const Key('urgent-pet'),
                 initialValue: _petId,
                 isExpanded: true,
@@ -113,7 +114,7 @@ class _UrgentRequestViewState extends ConsumerState<UrgentRequestView> {
                 onChanged: _busy ? null : (v) => setState(() => _petId = v),
                 validator: (v) => v == null ? 'Elige la mascota' : null,
               ),
-              DropdownButtonFormField<String>(
+              AppDropdown<String>(
                 key: const Key('urgent-address'),
                 initialValue: _addressId,
                 isExpanded: true,
@@ -131,7 +132,7 @@ class _UrgentRequestViewState extends ConsumerState<UrgentRequestView> {
                 onChanged: _busy ? null : (v) => setState(() => _addressId = v),
                 validator: (v) => v == null ? 'Elige la dirección' : null,
               ),
-              DropdownButtonFormField<int>(
+              AppDropdown<int>(
                 key: const Key('urgent-specialty'),
                 initialValue: _specialtyId,
                 isExpanded: true,

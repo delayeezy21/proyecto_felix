@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/domain/models/visit.dart';
+import 'package:proyecto_felix/ui/core/app_dropdown.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
 import 'package:proyecto_felix/ui/core/form_error.dart';
 import 'package:proyecto_felix/ui/features/visits/view_models/visit_providers.dart';
@@ -92,7 +93,7 @@ class _GrantDialogState extends ConsumerState<_GrantDialog> {
                 key: Key('grant-no-vets'),
               )
             else
-              DropdownButtonFormField<String>(
+              AppDropdown<String>(
                 key: const Key('grant-vet'),
                 initialValue: _vetId,
                 isExpanded: true,
@@ -103,7 +104,7 @@ class _GrantDialogState extends ConsumerState<_GrantDialog> {
                 ],
                 onChanged: (v) => setState(() => _vetId = v),
               ),
-            DropdownButtonFormField<int>(
+            AppDropdown<int>(
               key: const Key('grant-days'),
               initialValue: _days,
               decoration: const InputDecoration(labelText: 'Por cuánto tiempo'),

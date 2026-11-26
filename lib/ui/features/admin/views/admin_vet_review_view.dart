@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart' show FutureProviderFamily;
 import 'package:go_router/go_router.dart';
 import 'package:proyecto_felix/data/providers.dart';
 import 'package:proyecto_felix/data/services/platform_services.dart';
+import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/vet.dart';
 import 'package:proyecto_felix/ui/core/empty_state.dart';
 import 'package:proyecto_felix/ui/core/feedback.dart';
@@ -12,6 +13,36 @@ final pendingVetApplicationsProvider =
     FutureProvider<List<VetApplicationSummary>>(
       (ref) => ref.watch(vetRepositoryProvider).pendingApplications(),
     );
+
+/// Filtro de la pestaña Veterinarios del admin.
+enum AdminVetFilter {
+  pending('Pendientes'),
+  approved('Aprobados'),
+  all('Todos');
+
+  new(this.label);
+  final String label;
+}
+
+final FutureProviderFamily<List<VetApplicationSummary>, AdminVetFilter>
+adminVetsProvider =
+    FutureProvider.family<List<VetApplicationSummary>, AdminVetFilter>(
+      (ref, f) => switch (f) {
+        AdminVetFilter.pending => ref.watch(
+          pendingVetApplicationsProvider.future,
+        ),
+        AdminVetFilter.approved =>
+          ref.watch(vetRepositoryProvider).listVets(status: VetStatus.approved),
+        AdminVetFilter.all => ref.watch(vetRepositoryProvider).listVets(),
+      },
+    );
+
+String vetStatusLabel(VetStatus s) => switch (s) {
+  VetStatus.pending => 'Pendiente',
+  VetStatus.approved => 'Aprobado',
+  VetStatus.rejected => 'Rechazado',
+  VetStatus.suspended => 'Suspendido',
+};
 
 final FutureProviderFamily<VetApplicationDetail, String>
 vetApplicationDetailProvider =
@@ -26,48 +57,91 @@ String _date(DateTime d) {
       '${two(l.hour)}:${two(l.minute)}';
 }
 
-/// Pestaña con la cola de solicitudes pendientes.
-class AdminVetApplicationsTab extends ConsumerWidget {
+/// Pestaña Veterinarios: solicitudes pendientes y perfiles ya revisados.
+class AdminVetApplicationsTab extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final apps = ref.watch(pendingVetApplicationsProvider);
+  ConsumerState<AdminVetApplicationsTab> createState() =>
+      _AdminVetApplicationsTabState();
+}
+
+class _AdminVetApplicationsTabState
+    extends ConsumerState<AdminVetApplicationsTab> {
+  AdminVetFilter _filter = AdminVetFilter.pending;
+
+  @override
+  Widget build(BuildContext context) {
+    final apps = ref.watch(adminVetsProvider(_filter));
+    final filterBar = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: SegmentedButton<AdminVetFilter>(
+        key: const Key('admin-vet-filter'),
+        segments: [
+          for (final f in AdminVetFilter.values)
+            ButtonSegment(value: f, label: Text(f.label)),
+        ],
+        selected: {_filter},
+        showSelectedIcon: false,
+        onSelectionChanged: (s) => setState(() => _filter = s.first),
+      ),
+    );
     return RefreshIndicator(
-      onRefresh: () => ref.refresh(pendingVetApplicationsProvider.future),
+      onRefresh: () {
+        ref.invalidate(pendingVetApplicationsProvider);
+        return ref.refresh(adminVetsProvider(_filter).future);
+      },
       child: switch (apps) {
         AsyncData(:final value) when value.isEmpty => ListView(
-          children: const [
-            SizedBox(height: 48),
+          children: [
+            MaxWidth(child: filterBar),
+            const SizedBox(height: 32),
             EmptyState(
               icon: Icons.task_alt,
-              title: 'No hay solicitudes pendientes.',
-              message:
-                  'Cuando un veterinario envíe su solicitud aparecerá aquí. '
-                  'Desliza hacia abajo para actualizar.',
+              title: _filter == AdminVetFilter.pending
+                  ? 'No hay solicitudes pendientes.'
+                  : 'No hay veterinarios en esta lista.',
+              message: _filter == AdminVetFilter.pending
+                  ? 'Cuando un veterinario envíe su solicitud aparecerá '
+                        'aquí. Revisa "Aprobados" para ver los perfiles '
+                        'activos. Desliza hacia abajo para actualizar.'
+                  : 'Desliza hacia abajo para actualizar.',
             ),
           ],
         ),
         AsyncData(:final value) => MaxWidth(
           child: ListView.separated(
-            padding: const EdgeInsets.all(8),
-            itemCount: value.length,
-            separatorBuilder: (_, _) =>
-                const Divider(indent: 16, endIndent: 16),
+            padding: const EdgeInsets.only(bottom: 8),
+            itemCount: value.length + 1,
+            separatorBuilder: (_, i) => i == 0
+                ? const SizedBox.shrink()
+                : const Divider(indent: 16, endIndent: 16),
             itemBuilder: (context, i) {
-              final a = value[i];
+              if (i == 0) return filterBar;
+              final a = value[i - 1];
               final scheme = Theme.of(context).colorScheme;
+              final sent = a.submittedAt == null
+                  ? ''
+                  : ' · enviada ${_date(a.submittedAt!)}';
               return ListTile(
                 key: Key('application-${a.userId}'),
                 leading: CircleAvatar(
-                  backgroundColor: scheme.secondaryContainer,
-                  foregroundColor: scheme.onSecondaryContainer,
-                  child: const Icon(Icons.badge_outlined),
+                  backgroundColor: a.status == VetStatus.approved
+                      ? scheme.primaryContainer
+                      : scheme.secondaryContainer,
+                  foregroundColor: a.status == VetStatus.approved
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSecondaryContainer,
+                  child: Icon(
+                    a.status == VetStatus.approved
+                        ? Icons.verified_outlined
+                        : Icons.badge_outlined,
+                  ),
                 ),
                 title: Text(a.displayName),
                 subtitle: Text(
-                  '${a.university ?? 'Sin universidad'} · enviada '
-                  '${_date(a.submittedAt)}',
+                  '${vetStatusLabel(a.status)} · '
+                  '${a.university ?? 'Sin universidad'}$sent',
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.go('/admin/vets/${a.userId}'),
@@ -77,7 +151,8 @@ class AdminVetApplicationsTab extends ConsumerWidget {
         ),
         AsyncError(:final error) => ListView(
           children: [
-            const SizedBox(height: 48),
+            MaxWidth(child: filterBar),
+            const SizedBox(height: 32),
             EmptyState(
               icon: Icons.cloud_off,
               isError: true,
@@ -258,7 +333,12 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
     final detail = ref.watch(vetApplicationDetailProvider(widget.vetId));
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Revisar solicitud'),
+        title: Text(switch (detail) {
+          AsyncData(:final value)
+              when value.profile.status != VetStatus.pending =>
+            'Perfil del veterinario',
+          _ => 'Revisar solicitud',
+        }),
         leading: BackButton(onPressed: () => context.go('/admin')),
       ),
       body: switch (detail) {
@@ -408,97 +488,115 @@ class _AdminVetReviewViewState extends ConsumerState<AdminVetReviewView> {
                 ),
               ),
               const SizedBox(height: 12),
-              _ReviewSection(
-                icon: Icons.checklist,
-                title: 'Lista de chequeo',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'En Chile no hay un registro público oficial de '
-                      'veterinarios: verifica el certificado con la '
-                      'universidad emisora.',
-                      style: t.bodySmall,
-                    ),
-                    const SizedBox(height: 4),
-                    for (final c in _checks)
-                      CheckboxListTile(
-                        key: Key('check-${c.$1}'),
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        value: _checked.contains(c.$1),
-                        onChanged: (v) => setState(
-                          () => v ?? false
-                              ? _checked.add(c.$1)
-                              : _checked.remove(c.$1),
-                        ),
-                        title: Text(c.$3 ? c.$2 : '${c.$2} (opcional)'),
-                        subtitle: _suggested.contains(c.$1)
-                            ? Text(
-                                c.$3
-                                    // Chequeo obligatorio premarcado: la
-                                    // decisión sigue siendo del admin.
-                                    ? 'Sugerido por la verificación '
-                                          'automática: confírmalo tú antes '
-                                          'de aprobar'
-                                    : 'Sugerido por la verificación '
-                                          'automática',
-                                key: Key('suggested-${c.$1}'),
-                              )
-                            : null,
+              if (p.status != VetStatus.pending)
+                _ReviewSection(
+                  icon: p.status == VetStatus.approved
+                      ? Icons.verified_outlined
+                      : Icons.info_outline,
+                  title: 'Estado: ${vetStatusLabel(p.status)}',
+                  child: Text(
+                    p.status == VetStatus.approved
+                        ? 'Este perfil ya fue revisado y aprobado: el '
+                              'veterinario aparece para los dueños según su '
+                              'punto de partida y su horario.'
+                        : 'Este perfil ya fue revisado. No hay una decisión '
+                              'pendiente.',
+                    key: const Key('review-status'),
+                  ),
+                )
+              else ...[
+                _ReviewSection(
+                  icon: Icons.checklist,
+                  title: 'Lista de chequeo',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'En Chile no hay un registro público oficial de '
+                        'veterinarios: verifica el certificado con la '
+                        'universidad emisora.',
+                        style: t.bodySmall,
                       ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      key: const Key('review-notes'),
-                      // Checklist ~250 caracteres; la BD admite 1000 (QA-08/QA-18).
-                      maxLength: 500,
-                      controller: _notes,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Notas internas (opcional)',
-                        alignLabelWithHint: true,
+                      const SizedBox(height: 4),
+                      for (final c in _checks)
+                        CheckboxListTile(
+                          key: Key('check-${c.$1}'),
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          value: _checked.contains(c.$1),
+                          onChanged: (v) => setState(
+                            () => v ?? false
+                                ? _checked.add(c.$1)
+                                : _checked.remove(c.$1),
+                          ),
+                          title: Text(c.$3 ? c.$2 : '${c.$2} (opcional)'),
+                          subtitle: _suggested.contains(c.$1)
+                              ? Text(
+                                  c.$3
+                                      // Chequeo obligatorio premarcado: la
+                                      // decisión sigue siendo del admin.
+                                      ? 'Sugerido por la verificación '
+                                            'automática: confírmalo tú antes '
+                                            'de aprobar'
+                                      : 'Sugerido por la verificación '
+                                            'automática',
+                                  key: Key('suggested-${c.$1}'),
+                                )
+                              : null,
+                        ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        key: const Key('review-notes'),
+                        // Checklist ~250 caracteres; la BD admite 1000 (QA-08/QA-18).
+                        maxLength: 500,
+                        controller: _notes,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'Notas internas (opcional)',
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        key: const Key('review-reject'),
+                        onPressed: _busy ? null : () => _decide(approve: false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: scheme.error,
+                          side: BorderSide(color: scheme.error),
+                        ),
+                        icon: const Icon(Icons.close),
+                        label: const Text('Rechazar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const Key('review-approve'),
+                        onPressed: _busy || !_requiredChecked
+                            ? null
+                            : () => _decide(approve: true),
+                        icon: const Icon(Icons.check),
+                        label: const Text('Aprobar'),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      key: const Key('review-reject'),
-                      onPressed: _busy ? null : () => _decide(approve: false),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: scheme.error,
-                        side: BorderSide(color: scheme.error),
-                      ),
-                      icon: const Icon(Icons.close),
-                      label: const Text('Rechazar'),
+                if (!_requiredChecked)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Para aprobar, marca los 3 chequeos obligatorios.',
+                      style: t.bodySmall,
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      key: const Key('review-approve'),
-                      onPressed: _busy || !_requiredChecked
-                          ? null
-                          : () => _decide(approve: true),
-                      icon: const Icon(Icons.check),
-                      label: const Text('Aprobar'),
-                    ),
-                  ),
-                ],
-              ),
-              if (!_requiredChecked)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Para aprobar, marca los 3 chequeos obligatorios.',
-                    style: t.bodySmall,
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+              ],
               const SizedBox(height: 24),
             ],
           ),

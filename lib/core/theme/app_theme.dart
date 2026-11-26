@@ -150,6 +150,50 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(largeRadius + 8),
         ),
       ),
+      // Menús, hojas y calendario con las mismas esquinas redondeadas.
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surfaceContainerLow,
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(largeRadius),
+        ),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerLow),
+          elevation: const WidgetStatePropertyAll(3),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(largeRadius),
+            ),
+          ),
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        showDragHandle: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(largeRadius + 8),
+          ),
+        ),
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: scheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(largeRadius + 8),
+        ),
+        headerBackgroundColor: scheme.primaryContainer,
+        headerForegroundColor: scheme.onPrimaryContainer,
+        dayShape: const WidgetStatePropertyAll(CircleBorder()),
+        todayBorder: BorderSide(color: scheme.primary),
+        cancelButtonStyle: TextButton.styleFrom(shape: rounded),
+        confirmButtonStyle: TextButton.styleFrom(shape: rounded),
+      ),
+      timePickerTheme: TimePickerThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(largeRadius + 8),
+        ),
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: rounded,
