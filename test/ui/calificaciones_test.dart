@@ -387,14 +387,12 @@ void main() {
         )
         ..receivedList = [
           ReceivedRating(
-            visitId: 'vis1',
             raterRole: 'owner',
             stars: 5,
             comment: 'Excelente',
             publishedAt: DateTime(2026, 11, 22),
           ),
           const ReceivedRating(
-            visitId: 'vis2',
             raterRole: 'owner',
             stars: 2,
             commentHidden: true,

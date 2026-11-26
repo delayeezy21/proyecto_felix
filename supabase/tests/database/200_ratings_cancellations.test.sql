@@ -4,7 +4,7 @@
 -- (f01), otro vet (f02), vet que cancela (f03), vet bloqueado (f04), vets de
 -- la tabla de cargos (f05…f0b), admin (c01) y anónimo.
 begin;
-select plan(87);
+select plan(88);
 -- Sesión en UTC+14: las ventanas no dependen de la zona horaria.
 set local timezone = 'Etc/GMT-14';
 
@@ -217,12 +217,13 @@ select is(pg_temp.st('d04') -> 'theirs' ->> 'stars', '4',
   'd04: a los 7 días se publica aunque el vet no calificó');
 select is(pg_temp.st('d04') ->> 'can_rate', 'false', 'd04: el vet ya no puede calificar');
 select is(pg_temp.try($$ select pg_temp.rate('d04', 5) $$), 'err:22023', 'd04: plazo vencido');
-select is((select string_agg(visit_id::text || ':' || stars, ',' order by stars desc)
+select is((select string_agg(stars::text, ',' order by stars desc)
            from public.my_ratings_received()),
-  pg_temp.u('d01') || ':5,' || pg_temp.u('d04') || ':4',
+  '5,4',
   'el vet ve solo las publicadas (d06 sigue ciega, d05 es de una cuenta bloqueada)');
 select ok(not exists (select 1 from public.my_ratings_received() where rater_role <> 'owner'),
   'el vet solo recibe calificaciones de dueños');
+select ok(pg_get_function_result('public.my_ratings_received(integer)'::regprocedure) !~ '(visit_id|published_at)',  'O-F9-d: my_ratings_received no expone visit_id ni la hora exacta');
 
 -- Cuentas bloqueadas -------------------------------------------------------------
 select is(pg_temp.try($$ select pg_temp.rate('d05', 5) $$), 'err:22023',
@@ -288,7 +289,7 @@ select ok(exists (select 1 from public.admin_audit_log where table_name = 'ratin
   'ocultar queda en admin_audit_log');
 select pg_temp.login('f01');
 select is((select concat_ws('/', stars, coalesce(comment, 'null'), comment_hidden)
-           from public.my_ratings_received() where visit_id = pg_temp.u('d01')),
+           from public.my_ratings_received() where stars = 5),
   '5/null/t', 'el calificado ya no ve el comentario oculto (las estrellas siguen)');
 reset role;
 select is((select rating_avg from private.rating_stats(pg_temp.u('f01'), 'owner')), 3.33,

@@ -153,7 +153,7 @@ try {
   check(sV.theirs === null && sV.can_rate === true && sV.my_role === 'vet', 'el vet no ve la calificación del dueño antes de calificar');
   const sumBefore = await summary(V);
   const recvBefore = (await rpc('my_ratings_received', {}, V.token)).json;
-  check(!recvBefore.some((y) => y.visit_id === vB), 'ni aparece en my_ratings_received');
+  check(!recvBefore.some((y) => y.comment === 'Llegó tarde'), 'ni aparece en my_ratings_received');
   const rv = await rate(vB, 4, V.token, 'Dueño amable');
   check(rv.json.theirs?.stars === 2 && rv.json.theirs.comment === 'Llegó tarde', 'al calificar el segundo, ambos se publican (vet ve la del dueño)');
   const sB = (await status(vB, b.token)).json;
@@ -178,7 +178,7 @@ try {
     `promedio público de V = 4,4 con 5 (antes: ${JSON.stringify(sumBefore)}; ahora: ${JSON.stringify(sum)})`);
   check(keys(sum) === 'rating_avg,rating_count,vet_id', `vet_rating_summary solo trae el agregado (${keys(sum)})`);
   const recv = (await rpc('my_ratings_received', {}, V.token)).json;
-  check(recv.length === 5 && recv.every((y) => keys(y) === 'comment,comment_hidden,published_at,rater_role,stars,visit_id'),
+  check(recv.length === 5 && recv.every((y) => keys(y) === 'comment,comment_hidden,published_on,rater_role,stars'),
     `my_ratings_received: 5 filas sin rater_id (${recv.length}; ${keys(recv[0])})`);
   check(!JSON.stringify(recv).includes(a.id) && !JSON.stringify(recv).includes(b.id), 'sin UUID de los dueños');
   const mySum = (await rpc('my_rating_summary', {}, b.token)).json;
@@ -214,8 +214,8 @@ try {
   check(hide.status === 200 && hide.json.hidden === true, 'el admin oculta el comentario');
   const hv = (await status(vB, V.token)).json.theirs;
   check(hv.comment === null && hv.comment_hidden === true && hv.stars === 2, 'el vet ya no ve el comentario; las estrellas siguen');
-  const hr = (await rpc('my_ratings_received', {}, V.token)).json.find((y) => y.visit_id === vB);
-  check(hr.comment === null && hr.comment_hidden === true, 'tampoco en my_ratings_received');
+  const hr = (await rpc('my_ratings_received', {}, V.token)).json.find((y) => y.stars === 2 && y.comment_hidden);
+  check(hr?.comment === null && hr?.comment_hidden === true, 'tampoco en my_ratings_received');
   const audit = sql(`select count(*) || ':' || bool_and(actor_id = '${admin.id}') from public.admin_audit_log
     where table_name = 'ratings' and row_pk = '${target.id}' and action = 'UPDATE'`);
   check(audit === '1:true', `ocultar queda en admin_audit_log con el admin como actor (${audit})`);

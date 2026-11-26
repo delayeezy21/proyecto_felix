@@ -113,7 +113,6 @@ class RatingStatus {
 /// Calificación recibida (sin quién la hizo).
 class ReceivedRating {
   const new({
-    required this.visitId,
     required this.raterRole,
     required this.stars,
     this.comment,
@@ -122,15 +121,18 @@ class ReceivedRating {
   });
 
   factory fromJson(Map<String, dynamic> j) => ReceivedRating(
-    visitId: j['visit_id'] as String,
     raterRole: j['rater_role'] as String? ?? 'owner',
     stars: (j['stars'] as num).toInt(),
     comment: j['comment'] as String?,
     commentHidden: j['comment_hidden'] as bool? ?? false,
-    publishedAt: _date(j['published_at']),
+    // Solo el día (O-F9-d): sin visit_id ni hora exacta, para no delatar
+    // quién calificó.
+    publishedAt: switch (j['published_on']) {
+      final String d => DateTime.parse(d),
+      _ => null,
+    },
   );
 
-  final String visitId;
   final String raterRole;
   final int stars;
   final String? comment;
