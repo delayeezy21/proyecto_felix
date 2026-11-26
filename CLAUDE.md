@@ -15,7 +15,7 @@ Marketplace de veterinarios a domicilio (Flutter + Supabase). Requisitos: `SPEC.
 - `flutter analyze` · `flutter test` · `flutter test integration_test`
 - Supabase CLI fijada vía npx (no está instalada global): `npx --yes supabase@3.2.0 start` (requiere Docker) · `... test db` (pgTAP) · `... db advisors`
 - Ejecutar: `flutter run -d windows --dart-define-from-file=.env` (o `-d chrome`, `-d <android>`)
-- E2E Auth + REST (con `supabase start`): `node tool/e2e/auth_e2e.mjs "$(npx --yes supabase@3.2.0 status -o json | sed -n '/^{/,$p')"` Igual con `mascotas_e2e.mjs`, `privacidad_e2e.mjs`, `urgencias_e2e.mjs` (con `PUSH_PROVIDER = "fake"` en `[edge_runtime.secrets]`) y `precios_e2e.mjs` (este publica versiones de `pricing_config`: correr pgTAP antes, en un stack limpio).
+- E2E Auth + REST (con `supabase start`): `node tool/e2e/auth_e2e.mjs "$(npx --yes supabase@3.2.0 status -o json | sed -n '/^{/,$p')"` Igual con `mascotas_e2e.mjs`, `privacidad_e2e.mjs`, `urgencias_e2e.mjs` (con `PUSH_PROVIDER = "fake"` en `[edge_runtime.secrets]`) `suscripciones_e2e.mjs` (fase 10) y `precios_e2e.mjs` (este publica versiones de `pricing_config`: correr pgTAP antes, en un stack limpio).
 - Smoke de repositorios reales: `flutter test tool/smoke/repos_smoke_test.dart --dart-define=SUPABASE_PUBLISHABLE_KEY=... --dart-define=SUPABASE_SERVICE_KEY=...` (claves de `supabase status`).
 - En consultas de "mi fila" filtrar siempre por `auth.uid()` en el cliente: la RLS deja al admin ver todas las filas.
 - La plantilla de entorno es `env.example` (sin punto: Claude Code tiene bloqueado leer `.env.*`).
