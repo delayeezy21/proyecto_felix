@@ -81,7 +81,7 @@ select is_empty(
                               'subscribe', 'set_subscription_pets', 'cancel_subscription',
                               'my_subscription',
                               -- Fase 12 (clientes en el admin).
-                              'admin_list_owners', 'admin_owner_detail') $$,
+                              'admin_list_owners', 'admin_owner_detail', 'vet_rating_summaries') $$,
   'authenticated solo ejecuta helpers autorizados de private'
 );
 

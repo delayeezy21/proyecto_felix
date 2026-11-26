@@ -10,9 +10,12 @@
 // Contra un stack aislado, agrega --dart-define=SUPABASE_URL=http://127.0.0.1:<puerto>
 // (por defecto, el local estándar http://127.0.0.1:54321).
 import 'package:flutter_test/flutter_test.dart';
+import 'package:proyecto_felix/data/repositories/admin_client_repository.dart';
 import 'package:proyecto_felix/data/repositories/catalog_repository.dart';
 import 'package:proyecto_felix/data/repositories/owner_repositories.dart';
 import 'package:proyecto_felix/data/repositories/profile_repository.dart';
+import 'package:proyecto_felix/data/repositories/rating_repository.dart';
+import 'package:proyecto_felix/data/repositories/subscription_repository.dart';
 import 'package:proyecto_felix/data/repositories/vet_repository.dart';
 import 'package:proyecto_felix/domain/models/account.dart';
 import 'package:proyecto_felix/domain/models/address.dart';
@@ -265,4 +268,66 @@ void main() {
     expect(await SupabasePetRepository(other).myPets(), isEmpty);
     expect(await SupabaseAddressRepository(other).myAddresses(), isEmpty);
   });
+  test(
+    'fase 10–12: clientes, planes y promedios por lotes (repos reales)',
+    () async {
+      final admin = await _newUser('admin-f12');
+      final owner = await _newUser('owner-f12');
+      final svc = _client(_service);
+      final ids = [admin.auth.currentUser!.id, owner.auth.currentUser!.id];
+      try {
+        await svc.from('user_roles').insert({
+          'user_id': ids[0],
+          'role': 'admin',
+        });
+        final legal = await _legal(owner);
+        await SupabaseProfileRepository(owner).completeRegistration(
+          role: AppRole.owner,
+          displayName: 'Smoke F12',
+          phone: null,
+          legal: legal,
+          marketingConsent: false,
+          communeId: (await SupabaseCatalogRepository(owner).communes(13))
+              .first
+              .id,
+        );
+
+        // Admin: el dueño nuevo aparece en Clientes con su detalle.
+        final clients = SupabaseAdminClientRepository(admin);
+        final found = await clients.list(search: 'Smoke F12');
+        expect(found.map((c) => c.userId), contains(ids[1]));
+        final d = await clients.detail(ids[1]);
+        expect(d.visitsTotal, 0);
+        expect(d.email, contains('@test.local'));
+
+        // Dueño: catálogo de planes y sin suscripción.
+        final subs = SupabaseSubscriptionRepository(owner);
+        expect(
+          (await subs.plans()).map((p) => p.slug),
+          containsAll(['basico', 'plus', 'familia']),
+        );
+        expect(await subs.mine(), isNull);
+
+        // Promedios: varios pedidos simultáneos se resuelven en un lote.
+        final vets = await svc
+            .from('vet_profiles')
+            .select('user_id')
+            .eq('status', 'approved')
+            .limit(3);
+        final ratings = SupabaseRatingRepository(owner);
+        final res = await Future.wait([
+          for (final v in vets) ratings.vetSummary(v['user_id'] as String),
+          ratings.vetSummary('00000000-0000-0000-0000-000000000000'),
+        ]);
+        expect(res.last, isNull);
+        for (var i = 0; i < vets.length; i++) {
+          expect(res[i]?.vetId, vets[i]['user_id']);
+        }
+      } finally {
+        for (final id in ids) {
+          await svc.auth.admin.deleteUser(id);
+        }
+      }
+    },
+  );
 }

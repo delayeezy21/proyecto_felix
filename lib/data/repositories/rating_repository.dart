@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:proyecto_felix/data/services/account_blocked.dart';
 import 'package:proyecto_felix/domain/models/rating.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -136,14 +138,49 @@ class SupabaseRatingRepository implements RatingRepository {
     ),
   );
 
+  // O-F9-b: los pedidos del mismo ciclo (p. ej. cada vet de "Agendar") se
+  // juntan en una sola llamada a `vet_rating_summaries` (máximo 50 por lote).
+  final _pending = <String, Completer<VetRatingSummary?>>{};
+  bool _flushScheduled = false;
+
   @override
-  Future<VetRatingSummary?> vetSummary(String vetId) => _guard(() async {
-    final r = await _client.rpc<Object?>(
-      'vet_rating_summary',
-      params: {'p_vet_id': vetId},
-    );
-    return r == null ? null : VetRatingSummary.fromJson(_map(r));
-  });
+  Future<VetRatingSummary?> vetSummary(String vetId) {
+    final c = _pending.putIfAbsent(vetId, Completer.new);
+    if (!_flushScheduled) {
+      _flushScheduled = true;
+      Timer.run(_flush);
+    }
+    return c.future;
+  }
+
+  Future<void> _flush() async {
+    _flushScheduled = false;
+    final batch = Map.of(_pending);
+    _pending.clear();
+    final ids = batch.keys.toList();
+    for (var i = 0; i < ids.length; i += 50) {
+      final chunk = ids.sublist(i, i + 50 > ids.length ? ids.length : i + 50);
+      try {
+        final rows = await _guard(
+          () => _client.rpc<List<dynamic>>(
+            'vet_rating_summaries',
+            params: {'p_vet_ids': chunk},
+          ),
+        );
+        final byId = {
+          for (final r in rows)
+            if (VetRatingSummary.fromJson(_map(r)) case final s) s.vetId: s,
+        };
+        for (final id in chunk) {
+          batch[id]!.complete(byId[id]);
+        }
+      } on Object catch (e, st) {
+        for (final id in chunk) {
+          batch[id]!.completeError(e, st);
+        }
+      }
+    }
+  }
 
   @override
   Future<List<AdminRating>> adminList({int limit = 100}) =>

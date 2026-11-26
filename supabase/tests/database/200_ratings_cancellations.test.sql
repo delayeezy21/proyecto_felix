@@ -4,7 +4,7 @@
 -- (f01), otro vet (f02), vet que cancela (f03), vet bloqueado (f04), vets de
 -- la tabla de cargos (f05…f0b), admin (c01) y anónimo.
 begin;
-select plan(88);
+select plan(91);
 -- Sesión en UTC+14: las ventanas no dependen de la zona horaria.
 set local timezone = 'Etc/GMT-14';
 
@@ -261,6 +261,14 @@ select pg_temp.login('a01');
 select is(public.vet_rating_summary(pg_temp.u('f01')) - 'vet_id',
   '{"rating_avg": 3.33, "rating_count": 3}'::jsonb, 'el dueño ve solo el agregado del vet');
 select is(public.vet_rating_summary(pg_temp.u('f04')), null, 'de un vet bloqueado no hay resumen');
+-- O-F9-b: la versión por lotes coincide con la individual y omite bloqueados.
+select is((public.vet_rating_summaries(array[pg_temp.u('f01'), pg_temp.u('f04')]) -> 0),
+  public.vet_rating_summary(pg_temp.u('f01')), 'por lotes: mismo resumen que el individual');
+select is(jsonb_array_length(public.vet_rating_summaries(array[pg_temp.u('f01'), pg_temp.u('f04')])),
+  1, 'por lotes: el vet bloqueado no aparece');
+select is(pg_temp.try(format('select public.vet_rating_summaries(%L::uuid[])',
+  (select array_agg(gen_random_uuid()) from generate_series(1, 51)))), 'err:22023',
+  'por lotes: máximo 50 vets');
 reset role;
 select pg_temp.login('f01');
 select is(public.my_rating_summary() ->> 'rating_avg', '3.33', 'el vet ve su promedio');
@@ -389,6 +397,9 @@ select is((select string_agg(t.target || ':' || t.affected, ',' order by t.targe
            from public.deletion_targets t join public.deletion_requests d on d.id = t.request_id
            where t.target in ('ratings (hechas y recibidas)', 'vet_cancel_alerts')
              and d.role in ('owner', 'vet') and d.status = 'done'
+             -- Solo las de esta transacción: el stack compartido puede tener
+             -- borrados reales de E2E anteriores.
+             and d.requested_at = now()
              and t.affected > 0),
   'ratings (hechas y recibidas):2,vet_cancel_alerts:2', 'deletion_targets registra ambos pasos');
 select is((select count(*)::int from public.vet_cancel_alerts where vet_id = pg_temp.u('f03')), 0,
